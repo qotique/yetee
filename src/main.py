@@ -1,17 +1,19 @@
 """Types Editor - select cfgeconomycore.xml and edit type files."""
 
+from __future__ import annotations
+
 import asyncio
 import json
 import os
 import urllib.request
 import webbrowser
-import xml.etree.ElementTree as ET
+from lxml import etree as ET
 
 import flet as ft
 from file_display import FileDisplay
 
 
-VERSION = "0.0.2"
+VERSION = "0.0.3"
 
 TYPES_TEMPLATE = """<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
 <types>
