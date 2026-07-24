@@ -1,0 +1,103 @@
+name: Build
+
+on:
+  push:
+    branches: [main, packaging]
+    tags: ['*']
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install uv && uv sync --group dev
+      - name: Run tests
+        run: uv run python -m pytest tests/ -v
+
+  build-linux:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller flet flet-desktop
+      - name: Build Linux
+        run: |
+          pyinstaller --clean --onefile --name types_editor_linux \
+            --collect-all flet \
+            --collect-all flet_desktop \
+            --add-data "src/main.py:." \
+            --add-data "src/etree.py:." \
+            --add-data "src/file_display.py:." \
+            --add-data "src/assets:assets" \
+            src/main.py
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: types_editor_linux
+          path: dist/types_editor_linux
+
+  build-windows:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller flet flet-desktop
+      - name: Build Windows
+        shell: pwsh
+        run: |
+          pyinstaller --clean --onefile --name types_editor_windows.exe `
+            --collect-all flet `
+            --collect-all flet_desktop `
+            --add-data "src/main.py;." `
+            --add-data "src/etree.py;." `
+            --add-data "src/file_display.py;." `
+            --add-data "src/assets;assets" `
+            src/main.py
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: types_editor_windows
+          path: dist/types_editor_windows.exe
+
+  release:
+    needs: [build-linux, build-windows]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: types_editor_linux
+          path: dist/
+      - uses: actions/download-artifact@v4
+        with:
+          name: types_editor_windows
+          path: dist/
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/types_editor_linux
+            dist/types_editor_windows.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
