@@ -1,11 +1,13 @@
 """Types Editor - select cfgeconomycore.xml and edit type files."""
 
+from __future__ import annotations
+
 import asyncio
 import json
 import os
 import urllib.request
 import webbrowser
-import xml.etree.ElementTree as ET
+from lxml import etree as ET
 
 import flet as ft
 from file_display import FileDisplay
@@ -43,7 +45,7 @@ class App:
         page.on_route_change = self.route_change
         page.on_view_pop = self.view_pop
 
-        self.file_display = FileDisplay()
+        self.file_display = FileDisplay(page=self.page)
         self._build_controls()
 
         self.file_picker = ft.FilePicker()

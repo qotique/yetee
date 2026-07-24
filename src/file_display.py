@@ -1,10 +1,22 @@
-import xml.etree.ElementTree as ET
+from __future__ import annotations
+
+import asyncio
+
+from dataclasses import dataclass
+from lxml import etree as ET
 
 import flet as ft
 
-PAGE_SIZE = 100
 
-_cache: dict[str, list[list[str]]] = {}
+@dataclass
+class RowData:
+    fields: list[str]
+    elem: ET.Element
+
+
+PAGE_SIZE = 50
+
+_cache: dict[str, list[RowData]] = {}
 _cache_trees: dict[str, ET.ElementTree] = {}
 
 
@@ -47,22 +59,24 @@ def _names_to_str(elems: list[ET.Element]) -> str:
     return ", ".join(names)
 
 
-def _extract_row(type_elem: ET.Element) -> list[str]:
+def _build_row(type_elem: ET.Element) -> RowData:
     cat_elem = type_elem.find("category")
-    return [
-        type_elem.get("name", ""),
-        _elem_text(type_elem, "nominal"),
-        _elem_text(type_elem, "lifetime"),
-        _elem_text(type_elem, "restock"),
-        _elem_text(type_elem, "min"),
-        _elem_text(type_elem, "quantmin"),
-        _elem_text(type_elem, "quantmax"),
-        _elem_text(type_elem, "cost"),
-        _flags_to_str(type_elem.find("flags")),
-        cat_elem.get("name", "") if cat_elem is not None else "",
-        _names_to_str(type_elem.findall("usage")),
-        _names_to_str(type_elem.findall("value")),
-    ]
+    return RowData(
+            fields=[
+            type_elem.get("name", ""),
+            _elem_text(type_elem, "nominal"),
+            _elem_text(type_elem, "lifetime"),
+            _elem_text(type_elem, "restock"),
+            _elem_text(type_elem, "min"),
+            _elem_text(type_elem, "quantmin"),
+            _elem_text(type_elem, "quantmax"),
+            _elem_text(type_elem, "cost"),
+            _flags_to_str(type_elem.find("flags")),
+            cat_elem.get("name", "") if cat_elem is not None else "",
+            _names_to_str(type_elem.findall("usage")),
+            _names_to_str(type_elem.findall("value")),
+        ],
+        elem=type_elem)
 
 
 _COL_FLEX = [3, 1, 1, 1, 1, 1, 1, 1, 4, 2, 1, 3]
@@ -89,11 +103,13 @@ COLUMNS = [
 
 
 class FileDisplay:
-    def __init__(self):
+    def __init__(self, page: ft.Page):
+        self._page = page
+        self._search_task: asyncio.Task | None = None
         self._path: str | None = None
-        self._rows: list[list[str]] = []
+        self._rows: list[RowData] = []
         self._filtered: list[int] = []
-        self._page: int = 0
+        self._page_idx: int = 0
         self._dirty: bool = False
         self._syncing: bool = False
         self._prev_count: int = 0
@@ -108,7 +124,7 @@ class FileDisplay:
             text_size=12,
             width=250,
             on_submit=self._on_search,
-            on_change=self._on_search,
+            on_change=self._on_search_changed,
         )
 
         self._pool_fields: list[list[ft.TextField]] = []
@@ -180,7 +196,7 @@ class FileDisplay:
     def load_file(self, path: str) -> None:
         self._path = path
         self._save_status.value = ""
-        self._page = 0
+        self._page_idx = 0
         self._search_field.value = ""
         self._dirty = False
         self._prev_count = 0
@@ -192,7 +208,7 @@ class FileDisplay:
                 tree = ET.parse(path)
                 _cache_trees[path] = tree
                 root = tree.getroot()
-                self._rows = [_extract_row(t) for t in root.findall("type")]
+                self._rows = [_build_row(t) for t in root.findall("type")]
                 _cache[path] = self._rows
             except Exception as ex:
                 self.control.content = ft.Container(
@@ -213,13 +229,13 @@ class FileDisplay:
     def _sync_page_back(self) -> None:
         if self._path is None or not self._dirty:
             return
-        start = self._page * PAGE_SIZE
+        start = self._page_idx * PAGE_SIZE
         for i in range(len(self._data_table.rows)):
             row_idx = self._filtered[start + i] if start + i < len(self._filtered) else -1
             if row_idx < 0:
                 break
             for j in range(12):
-                self._rows[row_idx][j] = self._pool_fields[i][j].value
+                self._rows[row_idx].fields[j] = self._pool_fields[i][j].value
         self._dirty = False
 
     def _apply_filter(self, query: str) -> None:
@@ -228,21 +244,21 @@ class FileDisplay:
         else:
             self._filtered = [
                 i for i, row in enumerate(self._rows)
-                if query in row[0].lower()
+                if query in row.fields[0].lower()
             ]
 
     def _render_page(self) -> None:
         total = len(self._filtered)
         total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
-        self._page = max(0, min(self._page, total_pages - 1))
+        self._page_idx = max(0, min(self._page_idx, total_pages - 1))
 
-        start = self._page * PAGE_SIZE
+        start = self._page_idx * PAGE_SIZE
         end = min(start + PAGE_SIZE, total)
         count = end - start
 
         self._syncing = True
         for i in range(count):
-            row = self._rows[self._filtered[start + i]]
+            row = self._rows[self._filtered[start + i]].fields
             for j in range(12):
                 field = self._pool_fields[i][j]
                 if field.value != row[j]:
@@ -253,19 +269,19 @@ class FileDisplay:
             self._data_table.rows = self._pool_rows[:count]
             self._prev_count = count
 
-        self._page_info.value = f"Page {self._page + 1}/{total_pages}  ({total} rows)"
-        self._prev_btn.disabled = self._page <= 0
-        self._next_btn.disabled = self._page >= total_pages - 1
+        self._page_info.value = f"Page {self._page_idx + 1}/{total_pages}  ({total} rows)"
+        self._prev_btn.disabled = self._page_idx <= 0
+        self._next_btn.disabled = self._page_idx >= total_pages - 1
 
     def _prev_page(self, e) -> None:
         self._sync_page_back()
-        self._page -= 1
+        self._page_idx -= 1
         self._render_page()
         self._data_table.update()
 
     def _next_page(self, e) -> None:
         self._sync_page_back()
-        self._page += 1
+        self._page_idx += 1
         self._render_page()
         self._data_table.update()
 
@@ -273,9 +289,21 @@ class FileDisplay:
         self._sync_page_back()
         query = (self._search_field.value or "").strip().lower()
         self._apply_filter(query)
-        self._page = 0
+        self._page_idx = 0
         self._render_page()
         self.control.update()
+
+    def _on_search_changed(self, e) -> None:
+        if self._search_task is not None and not self._search_task.done():
+            self._search_task.cancel()
+        self._search_task = self._page.run_task(self._debounced_search)
+
+    async def _debounced_search(self) -> None:
+        try:
+            await asyncio.sleep(0.3)
+        except asyncio.CancelledError:
+            return
+        self._on_search(None)
 
     def _save(self, e) -> None:
         self._sync_page_back()
@@ -286,20 +314,21 @@ class FileDisplay:
             return
         try:
             root = tree.getroot()
-            for i, type_elem in enumerate(root.findall("type")):
-                row = self._rows[i]
-                type_elem.set("name", row[0])
-                _set_elem_text(type_elem, "nominal", row[1])
-                _set_elem_text(type_elem, "lifetime", row[2])
-                _set_elem_text(type_elem, "restock", row[3])
-                _set_elem_text(type_elem, "min", row[4])
-                _set_elem_text(type_elem, "quantmin", row[5])
-                _set_elem_text(type_elem, "quantmax", row[6])
-                _set_elem_text(type_elem, "cost", row[7])
-                self._update_flags(type_elem, row[8])
-                self._update_single_named(type_elem, "category", row[9])
-                self._update_multi_named(type_elem, "usage", row[10])
-                self._update_multi_named(type_elem, "value", row[11])
+            for row_data in self._rows:
+                row = row_data.fields
+                elem = row_data.elem
+                elem.set("name", row[0])
+                _set_elem_text(elem, "nominal", row[1])
+                _set_elem_text(elem, "lifetime", row[2])
+                _set_elem_text(elem, "restock", row[3])
+                _set_elem_text(elem, "min", row[4])
+                _set_elem_text(elem, "quantmin", row[5])
+                _set_elem_text(elem, "quantmax", row[6])
+                _set_elem_text(elem, "cost", row[7])
+                self._update_flags(elem, row[8])
+                self._update_single_named(elem, "category", row[9])
+                self._update_multi_named(elem, "usage", row[10])
+                self._update_multi_named(elem, "value", row[11])
             ET.indent(tree, space="\t")
             tree.write(self._path, encoding="UTF-8", xml_declaration=True)
             self._save_status.value = "Saved"

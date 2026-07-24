@@ -32,14 +32,14 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pyinstaller flet flet-desktop
+          pip install pyinstaller flet flet-desktop lxml
       - name: Build Linux
         run: |
           pyinstaller --clean --onefile --name types_editor_linux \
             --collect-all flet \
             --collect-all flet_desktop \
+            --collect-all lxml \
             --add-data "src/main.py:." \
-            --add-data "src/etree.py:." \
             --add-data "src/file_display.py:." \
             --add-data "src/assets:assets" \
             src/main.py
@@ -60,15 +60,15 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pyinstaller flet flet-desktop
+          pip install pyinstaller flet flet-desktop lxml
       - name: Build Windows
         shell: pwsh
         run: |
           pyinstaller --clean --onefile --name types_editor_windows.exe `
             --collect-all flet `
             --collect-all flet_desktop `
+            --collect-all lxml `
             --add-data "src/main.py;." `
-            --add-data "src/etree.py;." `
             --add-data "src/file_display.py;." `
             --add-data "src/assets;assets" `
             src/main.py
