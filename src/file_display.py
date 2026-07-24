@@ -277,13 +277,13 @@ class FileDisplay:
         self._sync_page_back()
         self._page_idx -= 1
         self._render_page()
-        self._data_table.update()
+        self.control.update()
 
     def _next_page(self, e) -> None:
         self._sync_page_back()
         self._page_idx += 1
         self._render_page()
-        self._data_table.update()
+        self.control.update()
 
     def _on_search(self, e) -> None:
         self._sync_page_back()
