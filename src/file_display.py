@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 from lxml import etree as ET
 from dataclasses import dataclass
 
 import flet as ft
 
-PAGE_SIZE = 100
+PAGE_SIZE = 50
 
 _cache: dict[str, list[RowData]] = {}
 _cache_trees: dict[str, ET.ElementTree] = {}

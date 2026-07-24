@@ -13,7 +13,7 @@ import flet as ft
 from file_display import FileDisplay
 
 
-VERSION = "0.0.3"
+VERSION = "0.0.4"
 
 TYPES_TEMPLATE = """<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
 <types>
