@@ -1,10 +1,11 @@
 import xml.etree.ElementTree as ET
+from dataclasses import dataclass
 
 import flet as ft
 
 PAGE_SIZE = 100
 
-_cache: dict[str, list[list[str]]] = {}
+_cache: dict[str, list[RowData]] = {}
 _cache_trees: dict[str, ET.ElementTree] = {}
 
 
@@ -47,22 +48,24 @@ def _names_to_str(elems: list[ET.Element]) -> str:
     return ", ".join(names)
 
 
-def _extract_row(type_elem: ET.Element) -> list[str]:
+def _build_row(type_elem: ET.Element) -> RowData:
     cat_elem = type_elem.find("category")
-    return [
-        type_elem.get("name", ""),
-        _elem_text(type_elem, "nominal"),
-        _elem_text(type_elem, "lifetime"),
-        _elem_text(type_elem, "restock"),
-        _elem_text(type_elem, "min"),
-        _elem_text(type_elem, "quantmin"),
-        _elem_text(type_elem, "quantmax"),
-        _elem_text(type_elem, "cost"),
-        _flags_to_str(type_elem.find("flags")),
-        cat_elem.get("name", "") if cat_elem is not None else "",
-        _names_to_str(type_elem.findall("usage")),
-        _names_to_str(type_elem.findall("value")),
-    ]
+    return RowData(
+            fields=[
+            type_elem.get("name", ""),
+            _elem_text(type_elem, "nominal"),
+            _elem_text(type_elem, "lifetime"),
+            _elem_text(type_elem, "restock"),
+            _elem_text(type_elem, "min"),
+            _elem_text(type_elem, "quantmin"),
+            _elem_text(type_elem, "quantmax"),
+            _elem_text(type_elem, "cost"),
+            _flags_to_str(type_elem.find("flags")),
+            cat_elem.get("name", "") if cat_elem is not None else "",
+            _names_to_str(type_elem.findall("usage")),
+            _names_to_str(type_elem.findall("value")),
+        ],
+        elem=type_elem)
 
 
 _COL_FLEX = [3, 1, 1, 1, 1, 1, 1, 1, 4, 2, 1, 3]
@@ -88,10 +91,16 @@ COLUMNS = [
 ]
 
 
+@dataclass
+class RowData:
+    fields: list[str]
+    elem: ET.Element
+
+
 class FileDisplay:
     def __init__(self):
         self._path: str | None = None
-        self._rows: list[list[str]] = []
+        self._rows: list[RowData] = []
         self._filtered: list[int] = []
         self._page: int = 0
         self._dirty: bool = False
@@ -192,7 +201,7 @@ class FileDisplay:
                 tree = ET.parse(path)
                 _cache_trees[path] = tree
                 root = tree.getroot()
-                self._rows = [_extract_row(t) for t in root.findall("type")]
+                self._rows = [_build_row(t) for t in root.findall("type")]
                 _cache[path] = self._rows
             except Exception as ex:
                 self.control.content = ft.Container(
@@ -219,7 +228,7 @@ class FileDisplay:
             if row_idx < 0:
                 break
             for j in range(12):
-                self._rows[row_idx][j] = self._pool_fields[i][j].value
+                self._rows[row_idx].fields[j] = self._pool_fields[i][j].value
         self._dirty = False
 
     def _apply_filter(self, query: str) -> None:
@@ -228,7 +237,7 @@ class FileDisplay:
         else:
             self._filtered = [
                 i for i, row in enumerate(self._rows)
-                if query in row[0].lower()
+                if query in row.fields[0].lower()
             ]
 
     def _render_page(self) -> None:
@@ -242,7 +251,7 @@ class FileDisplay:
 
         self._syncing = True
         for i in range(count):
-            row = self._rows[self._filtered[start + i]]
+            row = self._rows[self._filtered[start + i]].fields
             for j in range(12):
                 field = self._pool_fields[i][j]
                 if field.value != row[j]:
@@ -286,20 +295,21 @@ class FileDisplay:
             return
         try:
             root = tree.getroot()
-            for i, type_elem in enumerate(root.findall("type")):
-                row = self._rows[i]
-                type_elem.set("name", row[0])
-                _set_elem_text(type_elem, "nominal", row[1])
-                _set_elem_text(type_elem, "lifetime", row[2])
-                _set_elem_text(type_elem, "restock", row[3])
-                _set_elem_text(type_elem, "min", row[4])
-                _set_elem_text(type_elem, "quantmin", row[5])
-                _set_elem_text(type_elem, "quantmax", row[6])
-                _set_elem_text(type_elem, "cost", row[7])
-                self._update_flags(type_elem, row[8])
-                self._update_single_named(type_elem, "category", row[9])
-                self._update_multi_named(type_elem, "usage", row[10])
-                self._update_multi_named(type_elem, "value", row[11])
+            for row_data in self._rows:
+                row = row_data.fields
+                elem = row_data.elem
+                elem.set("name", row[0])
+                _set_elem_text(elem, "nominal", row[1])
+                _set_elem_text(elem, "lifetime", row[2])
+                _set_elem_text(elem, "restock", row[3])
+                _set_elem_text(elem, "min", row[4])
+                _set_elem_text(elem, "quantmin", row[5])
+                _set_elem_text(elem, "quantmax", row[6])
+                _set_elem_text(elem, "cost", row[7])
+                self._update_flags(elem, row[8])
+                self._update_single_named(elem, "category", row[9])
+                self._update_multi_named(elem, "usage", row[10])
+                self._update_multi_named(elem, "value", row[11])
             ET.indent(tree, space="\t")
             tree.write(self._path, encoding="UTF-8", xml_declaration=True)
             self._save_status.value = "Saved"

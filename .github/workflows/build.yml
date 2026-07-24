@@ -39,7 +39,6 @@ jobs:
             --collect-all flet \
             --collect-all flet_desktop \
             --add-data "src/main.py:." \
-            --add-data "src/etree.py:." \
             --add-data "src/file_display.py:." \
             --add-data "src/assets:assets" \
             src/main.py
@@ -68,7 +67,6 @@ jobs:
             --collect-all flet `
             --collect-all flet_desktop `
             --add-data "src/main.py;." `
-            --add-data "src/etree.py;." `
             --add-data "src/file_display.py;." `
             --add-data "src/assets;assets" `
             src/main.py
