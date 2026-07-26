@@ -2,31 +2,16 @@
 
 from __future__ import annotations
 
-import asyncio
-import json
 import os
-import urllib.request
-import webbrowser
-from lxml import etree as ET
 
 import flet as ft
 from file_display import FileDisplay
+from services.config_service import ConfigService
+from services.settings_service import SettingsService, THEMES, LANGUAGES
+from services.update_service import UpdateService
 
 
 VERSION = "0.1.3"
-
-TYPES_TEMPLATE = """<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
-<types>
-</types>
-"""
-
-THEMES: dict[str, ft.ThemeMode] = {
-    "SYSTEM": ft.ThemeMode.SYSTEM,
-    "DARK": ft.ThemeMode.DARK,
-    "LIGHT": ft.ThemeMode.LIGHT,
-}
-
-LANGUAGES = ["English", "Русский", "Українська"]
 
 
 class App:
@@ -39,6 +24,10 @@ class App:
         self.selected_theme: str = "SYSTEM"
         self.selected_language: str = "English"
         self.check_updates: bool = True
+
+        self._config_service = ConfigService(page)
+        self._settings_service = SettingsService(page)
+        self._update_service = UpdateService(page)
 
         page.title = "Types Editor"
         page.theme_mode = THEMES[self.selected_theme]
@@ -266,10 +255,11 @@ class App:
         await self.page.push_route("/settings")
 
     async def _load_settings(self):
-        sp = self.page.shared_preferences
-        theme = await sp.get("types_editor.theme")
-        lang = await sp.get("types_editor.language")
-        updates = await sp.get("types_editor.check_updates")
+        settings = await self._settings_service.load_settings()
+
+        theme = settings.get("theme")
+        lang = settings.get("language")
+        updates = settings.get("check_updates")
 
         if theme and theme in THEMES:
             self.selected_theme = theme
@@ -284,7 +274,7 @@ class App:
         self.page.update()
 
         if self.check_updates:
-            await self.check_for_updates()
+            await self._update_service.check_for_updates(VERSION)
 
     async def _on_theme_change(self, e):
         theme = e.control.value
@@ -292,7 +282,7 @@ class App:
             return
         self.selected_theme = theme
         self.page.theme_mode = THEMES[theme]
-        await self.page.shared_preferences.set("types_editor.theme", theme)
+        await self._settings_service.save_setting("theme", theme)
         self.page.update()
 
     async def _on_language_change(self, e):
@@ -300,7 +290,7 @@ class App:
         if lang not in LANGUAGES:
             return
         self.selected_language = lang
-        await self.page.shared_preferences.set("types_editor.language", lang)
+        await self._settings_service.save_setting("language", lang)
         if lang != "English":
             dialog = ft.AlertDialog(
                 title=ft.Text("Not available"),
@@ -312,104 +302,7 @@ class App:
 
     async def _on_check_updates_change(self, e):
         self.check_updates = e.control.value
-        await self.page.shared_preferences.set("types_editor.check_updates", e.control.value)
-
-    async def check_for_updates(self, show_up_to_date=False):
-        try:
-            url = "https://api.github.com/repos/qotique/yetee/releases/latest"
-            loop = asyncio.get_running_loop()
-            response = await loop.run_in_executor(
-                None, lambda: urllib.request.urlopen(url, timeout=10)
-            )
-            data = json.loads(response.read().decode())
-            latest_tag = data.get("tag_name", "")
-            latest = latest_tag.lstrip("v")
-
-            current_parts = [int(x) for x in VERSION.split(".")]
-            latest_parts = [int(x) for x in latest.split(".")]
-
-            if latest_parts > current_parts:
-                release_notes = data.get("body")
-                if not release_notes:
-                    release_notes = await self._fetch_commit_message(latest_tag)
-                await self._show_update_dialog(
-                    latest_tag,
-                    data.get("html_url", ""),
-                    release_notes or "",
-                )
-            elif show_up_to_date:
-                await self._show_up_to_date_dialog()
-        except Exception as ex:
-            if show_up_to_date:
-                await self._show_error_dialog(str(ex))
-
-    async def _fetch_commit_message(self, tag_name):
-        try:
-            loop = asyncio.get_running_loop()
-            url = f"https://api.github.com/repos/qotique/yetee/git/ref/tags/{tag_name}"
-            ref_resp = await loop.run_in_executor(
-                None, lambda: urllib.request.urlopen(url, timeout=10)
-            )
-            sha = json.loads(ref_resp.read().decode())["object"]["sha"]
-
-            url = f"https://api.github.com/repos/qotique/yetee/git/commits/{sha}"
-            commit_resp = await loop.run_in_executor(
-                None, lambda: urllib.request.urlopen(url, timeout=10)
-            )
-            return json.loads(commit_resp.read().decode()).get("message", "")
-        except Exception:
-            return None
-
-    async def _show_update_dialog(self, latest_tag, release_url, release_notes):
-        notes_text = (
-            release_notes
-            if release_notes
-            else "No release notes provided with this release.\n"
-                 "See the release page on GitHub for details."
-        )
-        alert = ft.AlertDialog(
-            title=ft.Text(f"Update Available: {latest_tag}"),
-            content=ft.Text(
-                f"Current version: v{VERSION}\n"
-                f"Latest version: {latest_tag}\n\n"
-                f"--- Release Notes ---\n\n"
-                f"{notes_text}",
-                selectable=True,
-            ),
-            actions=[
-                ft.TextButton(
-                    "Download",
-                    on_click=lambda _: (
-                        webbrowser.open(release_url),
-                        self.page.pop_dialog(),
-                    ),
-                ),
-                ft.TextButton(
-                    "Dismiss",
-                    on_click=lambda _: self.page.pop_dialog(),
-                ),
-            ],
-            open=True,
-        )
-        self.page.show_dialog(alert)
-
-    async def _show_up_to_date_dialog(self):
-        alert = ft.AlertDialog(
-            title=ft.Text("No Updates"),
-            content=ft.Text(f"You have the latest version (v{VERSION})."),
-            actions=[ft.TextButton("OK", on_click=lambda _: self.page.pop_dialog())],
-            open=True,
-        )
-        self.page.show_dialog(alert)
-
-    async def _show_error_dialog(self, error_msg):
-        alert = ft.AlertDialog(
-            title=ft.Text("Check Failed"),
-            content=ft.Text(f"Could not check for updates:\n{error_msg}"),
-            actions=[ft.TextButton("OK", on_click=lambda _: self.page.pop_dialog())],
-            open=True,
-        )
-        self.page.show_dialog(alert)
+        await self._settings_service.save_setting("check_updates", e.control.value)
 
     def _on_file_change(self, e):
         name = self.file_dropdown.value
@@ -455,44 +348,14 @@ class App:
         )
         self.page.show_dialog(dialog)
     def _create_file(self, name: str):
-        if not name.endswith(".xml"):
-            name += ".xml"
-
-        if not self.types_dir:
+        if not self.config_path:
             return
 
-        file_path = os.path.join(self.types_dir, name)
-        file_exists = os.path.exists(file_path)
-
-        if not file_exists:
-            try:
-                os.makedirs(self.types_dir, exist_ok=True)
-                with open(file_path, "w", encoding="utf-8") as f:
-                    f.write(TYPES_TEMPLATE)
-            except Exception as ex:
-                self.selected_dir_text.value = f"Error creating file: {ex}"
-                self.page.update()
-                return
-
-        tree = ET.parse(self.config_path)
-        root = tree.getroot()
-        ce = root.find("ce")
-
-        if ce is None:
-            ce = ET.SubElement(root, "ce")
-            ce.set("folder", "db")
-
-        already_in_config = any(
-            fe.get("name") == name for fe in ce.findall("file")
-        )
-
-        if not already_in_config:
-            file_elem = ET.SubElement(ce, "file")
-            file_elem.set("name", name)
-            file_elem.set("type", "types")
-
-            ET.indent(tree, space="\t")
-            tree.write(self.config_path, encoding="UTF-8", xml_declaration=True)
+        result = self._config_service.create_type_file(self.config_path, name)
+        if result is None:
+            self.selected_dir_text.value = f"Error creating file: {name}"
+            self.page.update()
+            return
 
         self._load_files()
 
@@ -501,7 +364,13 @@ class App:
             return
 
         def on_delete(ev):
-            self._confirm_delete(name)
+            success = self._config_service.delete_type_file(self.config_path, name)
+            if success:
+                self.file_display.clear()
+                self._load_files()
+            else:
+                self.selected_dir_text.value = f"Error deleting file: {name}"
+                self.page.update()
             self.page.pop_dialog()
 
         def on_cancel(ev):
@@ -516,39 +385,6 @@ class App:
             ],
         )
         self.page.show_dialog(dialog)
-
-    def _confirm_delete(self, name: str):
-        if not self.types_dir:
-            return
-
-        file_path = os.path.join(self.types_dir, name)
-        try:
-            if os.path.exists(file_path):
-                os.remove(file_path)
-        except Exception as ex:
-            self.selected_dir_text.value = f"Error deleting file: {ex}"
-            self.page.update()
-            return
-
-        tree = ET.parse(self.config_path)
-        root = tree.getroot()
-        ce = root.find("ce")
-
-        if ce is not None:
-            for file_elem in ce.findall("file"):
-                if file_elem.get("name") == name:
-                    ce.remove(file_elem)
-                    break
-
-            if len(ce.findall("file")) == 0 and not ce.get("folder"):
-                root.remove(ce)
-
-        ET.indent(tree, space="\t")
-        tree.write(self.config_path, encoding="UTF-8", xml_declaration=True)
-
-        self.file_display.clear()
-
-        self._load_files()
 
     def _on_file_click(self, path: str):
         self.file_display.load_file(path)
@@ -575,22 +411,11 @@ class App:
         self.selected_dir_text.value = f"Config: {self.config_path}"
 
         try:
-            tree = ET.parse(self.config_path)
-            root = tree.getroot()
-            ce = root.find("ce")
-
-            if ce is not None:
-                folder = ce.get("folder", "")
-                config_dir = os.path.dirname(self.config_path)
-                self.types_dir = os.path.join(config_dir, folder)
-
-                for file_elem in ce.findall("file"):
-                    name = file_elem.get("name", "")
-                    if name:
-                        self._files[name] = os.path.join(self.types_dir, name)
-            else:
-                self.types_dir = os.path.dirname(self.config_path)
-
+            filenames = self._config_service.load_files(self.config_path)
+            self.types_dir = self._config_service.get_types_dir(self.config_path)
+            if self.types_dir:
+                for name in filenames:
+                    self._files[name] = os.path.join(self.types_dir, name)
         except Exception as ex:
             self.selected_dir_text.value = f"Error parsing config: {ex}"
 
