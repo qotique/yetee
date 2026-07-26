@@ -68,7 +68,7 @@ class UpdateService:
         alert = ft.AlertDialog(
             title=ft.Text(f"Update Available: {latest_tag}"),
             content=ft.Text(
-                f"Current version: v{latest_tag}\n"
+                f"Current version: {latest_tag}\n"
                 f"Latest version: {latest_tag}\n\n"
                 f"--- Release Notes ---\n\n"
                 f"{notes_text}",

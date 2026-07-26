@@ -19,14 +19,14 @@ class ChipSet:
         self._on_change = on_change
 
         self._chips_row = ft.Row(wrap=True, spacing=4, run_spacing=4)
-        self._add_dd = ft.Dropdown(
-            value="",
-            dense=True,
-            text_size=12,
-            expand=True,
-            options=[ft.DropdownOption(key="", text="")] + [ft.DropdownOption(key=o) for o in self._options],
+        self._add_menu = ft.PopupMenuButton(
+            icon=ft.Icons.ADD_CIRCLE_OUTLINED,
+            tooltip=f"Add {label}" if label else "Add",
+            items=[
+                ft.PopupMenuItem(content=ft.Text(o), on_click=lambda _, v=o: self.add(v))
+                for o in self._options
+            ],
         )
-        self._add_btn = ft.FilledButton("Add", on_click=self._handle_add)
         self._container = ft.Column(scroll=ft.ScrollMode.AUTO, height=100)
         self.refresh()
 
@@ -46,17 +46,11 @@ class ChipSet:
     def get_values(self) -> list[str]:
         return sorted(self._values)
 
-    def _handle_add(self, e) -> None:
-        v = self._add_dd.value
-        if v:
-            self.add(v)
-            self._add_dd.value = ""
-
     def build_controls(self) -> ft.Control:
         self.refresh()
         self._container.controls = [
             self._chips_row,
-            ft.Row([self._add_dd, self._add_btn], spacing=4),
+            ft.Row([self._add_menu], spacing=4),
         ]
         return self._container
 

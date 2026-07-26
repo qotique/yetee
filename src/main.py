@@ -11,7 +11,7 @@ from services.settings_service import SettingsService, THEMES, LANGUAGES
 from services.update_service import UpdateService
 
 
-VERSION = "0.2.0"
+VERSION = "0.2.1"
 
 
 class App:
