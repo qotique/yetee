@@ -11,11 +11,17 @@ from services.settings_service import SettingsService, THEMES, LANGUAGES
 from services.update_service import UpdateService
 
 
-VERSION = "0.1.3"
+VERSION = "0.2.0"
 
 
 class App:
-    def __init__(self, page: ft.Page):
+    def __init__(
+        self,
+        page: ft.Page,
+        config_service: ConfigService,
+        settings_service: SettingsService,
+        update_service: UpdateService,
+    ):
         self.page = page
         self.config_path: str | None = None
         self.types_dir: str | None = None
@@ -25,11 +31,11 @@ class App:
         self.selected_language: str = "English"
         self.check_updates: bool = True
 
-        self._config_service = ConfigService(page)
-        self._settings_service = SettingsService(page)
-        self._update_service = UpdateService(page)
+        self._config_service = config_service
+        self._settings_service = settings_service
+        self._update_service = update_service
 
-        page.title = "Types Editor"
+        page.title = "Yet Another Types Editing Environment | YETEE"
         page.theme_mode = THEMES[self.selected_theme]
         page.on_route_change = self.route_change
         page.on_view_pop = self.view_pop
@@ -448,9 +454,18 @@ class App:
         self.page.run_task(self._pick_file)
 
 
-def main():
-    ft.app(target=App)
+def main(page: ft.Page):
+    settings_service = SettingsService(page)
+    config_service = ConfigService(page)
+    update_service = UpdateService(page)
+    App(
+        page=page,
+        config_service=config_service,
+        settings_service=settings_service,
+        update_service=update_service,
+    )
+    page.update()
 
 
 if __name__ == "__main__":
-    main()
+    ft.app(target=main)

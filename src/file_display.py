@@ -56,9 +56,16 @@ def _collect_flag_names(rows: list[RowData]) -> list[str]:
 
 
 class FileDisplay:
-    def __init__(self, page: ft.Page, xml_repo: XmlRepository | None = None):
+    def __init__(
+        self,
+        page: ft.Page,
+        xml_repo: XmlRepository | None = None,
+        cache: FileCache | None = None,
+        detail_panel: DetailPanel | None = None,
+        batch_panel: BatchPanel | None = None,
+    ):
         self._page = page
-        self.cache = FileCache()
+        self.cache = cache or FileCache()
         self.xml_repo = xml_repo or XmlRepository(cache=self.cache)
         self._page.theme = ft.Theme(hover_color=ft.Colors.TRANSPARENT)
         self._page.dark_theme = ft.Theme(hover_color=ft.Colors.TRANSPARENT)
@@ -97,6 +104,14 @@ class FileDisplay:
             tooltip="Toggle multi-select mode",
             on_click=self._toggle_multi_select,
             icon_color=ft.Colors.GREY,
+        )
+        self._undo_btn = ft.IconButton(
+            icon=ft.Icons.UNDO,
+            tooltip="Undo is not implemented yet.",
+        )
+        self._redo_btn = ft.IconButton(
+            icon=ft.Icons.REDO,
+            tooltip="Redo is not implemented yet.",
         )
         self._search_field = ft.TextField(
             label="Search",
@@ -157,8 +172,8 @@ class FileDisplay:
             alignment=ft.Alignment.CENTER,
             expand=True,
         )
-        self._detail_panel = DetailPanel(self._page, self._tips_switcher, on_changed=lambda: self._on_field_change(None))
-        self._batch_panel = BatchPanel(self._page, self._tips_switcher, on_batch_apply=self._on_batch_action)
+        self._detail_panel = detail_panel or DetailPanel(self._page, self._tips_switcher, on_changed=lambda: self._on_field_change(None))
+        self._batch_panel = batch_panel or BatchPanel(self._page, self._tips_switcher, on_batch_apply=self._on_batch_action)
         self._detail_container = ft.Container(
             width=400,
             padding=10,
@@ -178,6 +193,9 @@ class FileDisplay:
                             [
                                 ft.Button("Save", icon=ft.Icons.SAVE, on_click=self._save),
                                 self._multi_btn,
+                                self._undo_btn,
+                                self._redo_btn,
+                                ft.Divider(),
                                 self._save_status,
                             ],
                             alignment=ft.MainAxisAlignment.START,

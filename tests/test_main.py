@@ -269,7 +269,13 @@ def test_app_creates_service_instances(mock_page):
     from unittest.mock import patch
     with patch("flet.FilePicker"):
         from main import App
-        app = App(mock_page)
+        from services.config_service import ConfigService
+        from services.settings_service import SettingsService
+        from services.update_service import UpdateService
+        config_service = ConfigService(mock_page)
+        settings_service = SettingsService(mock_page)
+        update_service = UpdateService(mock_page)
+        app = App(mock_page, config_service, settings_service, update_service)
         assert hasattr(app, "_config_service")
         assert hasattr(app, "_settings_service")
         assert hasattr(app, "_update_service")
@@ -279,7 +285,13 @@ def test_app_delegates_config_service(ce_file, mock_page, tmp_path):
     from unittest.mock import patch
     with patch("flet.FilePicker"):
         from main import App
-        app = App(mock_page)
+        from services.config_service import ConfigService
+        from services.settings_service import SettingsService
+        from services.update_service import UpdateService
+        config_service = ConfigService(mock_page)
+        settings_service = SettingsService(mock_page)
+        update_service = UpdateService(mock_page)
+        app = App(mock_page, config_service, settings_service, update_service)
 
         svc = app._config_service
         result = svc.load_files(str(ce_file))
@@ -291,5 +303,11 @@ def test_app_delegates_settings_service(mock_page):
     from unittest.mock import patch
     with patch("flet.FilePicker"):
         from main import App
-        app = App(mock_page)
+        from services.config_service import ConfigService
+        from services.settings_service import SettingsService
+        from services.update_service import UpdateService
+        config_service = ConfigService(mock_page)
+        settings_service = SettingsService(mock_page)
+        update_service = UpdateService(mock_page)
+        app = App(mock_page, config_service, settings_service, update_service)
         assert app._settings_service is not None
