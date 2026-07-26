@@ -3,10 +3,16 @@ from __future__ import annotations
 import asyncio
 import time
 
-from dataclasses import dataclass
 from lxml import etree as ET
 
 import flet as ft
+
+from models.field_def import FieldDef, FieldType, STATIC_FIELD_DEFS
+from models.row_data import RowData
+from repository.file_cache import FileCache
+from repository.xml_repository import XmlRepository, _elem_text, _set_elem_text, _names_to_str
+from ui.batch_panel import BatchPanel
+from ui.detail_panel import DetailPanel
 
 
 CATEGORIES = ["clothes", "containers", "explosives", "food", "lootdispatch", "tools", "weapons"]
@@ -40,36 +46,7 @@ _TIPS = [
 ]
 
 
-@dataclass
-class RowData:
-    fields: list[str]
-    flags: dict[str, str]
-    elem: ET.Element
-
-
 PAGE_SIZE = 50
-
-_cache: dict[str, list[RowData]] = {}
-_cache_trees: dict[str, ET.ElementTree] = {}
-
-
-def _elem_text(parent: ET.Element, tag: str, default: str = "") -> str:
-    elem = parent.find(tag)
-    if elem is not None and elem.text:
-        return elem.text.strip()
-    return default
-
-
-def _set_elem_text(parent: ET.Element, tag: str, value: str) -> None:
-    elem = parent.find(tag)
-    if elem is not None:
-        if value:
-            elem.text = value
-        else:
-            parent.remove(elem)
-    elif value:
-        ET.SubElement(parent, tag).text = value
-
 
 def _collect_flag_names(rows: list[RowData]) -> list[str]:
     seen: set[str] = set()
@@ -78,38 +55,18 @@ def _collect_flag_names(rows: list[RowData]) -> list[str]:
     return sorted(seen)
 
 
-def _names_to_str(elems: list[ET.Element]) -> str:
-    names = [e.get("name", "") for e in elems if e.get("name")]
-    return ", ".join(names)
-
-
-def _build_row(type_elem: ET.Element) -> RowData:
-    cat_elem = type_elem.find("category")
-    flags_elem = type_elem.find("flags")
-    return RowData(
-        fields=[
-            type_elem.get("name", ""),
-            _elem_text(type_elem, "nominal"),
-            _elem_text(type_elem, "lifetime"),
-            _elem_text(type_elem, "restock"),
-            _elem_text(type_elem, "min"),
-            _elem_text(type_elem, "quantmin"),
-            _elem_text(type_elem, "quantmax"),
-            _elem_text(type_elem, "cost"),
-            cat_elem.get("name", "") if cat_elem is not None else "",
-            _names_to_str(type_elem.findall("usage")),
-            _names_to_str(type_elem.findall("value")),
-        ],
-        flags={k: v for k, v in flags_elem.attrib.items()} if flags_elem is not None else {},
-        elem=type_elem)
-
-
-_NUM_BASE_COLS = 8  # name, nominal, lifetime, restock, min, quantmin, quantmax, cost
-
-
 class FileDisplay:
-    def __init__(self, page: ft.Page):
+    def __init__(
+        self,
+        page: ft.Page,
+        xml_repo: XmlRepository | None = None,
+        cache: FileCache | None = None,
+        detail_panel: DetailPanel | None = None,
+        batch_panel: BatchPanel | None = None,
+    ):
         self._page = page
+        self.cache = cache or FileCache()
+        self.xml_repo = xml_repo or XmlRepository(cache=self.cache)
         self._page.theme = ft.Theme(hover_color=ft.Colors.TRANSPARENT)
         self._page.dark_theme = ft.Theme(hover_color=ft.Colors.TRANSPARENT)
         self._search_task: asyncio.Task | None = None
@@ -131,17 +88,9 @@ class FileDisplay:
         self._drag_start_slot: int | None = None
 
         page.on_keyboard_event = self._on_page_keyboard
-        self._detail_usage_set: set[str] = set()
-        self._detail_value_set: set[str] = set()
-        self._batch_panel: ft.Container | None = None
-        self._batch_fields: dict[str, ft.TextField | ft.Dropdown | ft.Checkbox] = {}
-        self._batch_flag_checkboxes: dict[str, ft.Checkbox] = {}
-        self._batch_usage_set: set[str] = set()
-        self._batch_value_set: set[str] = set()
 
-
+        self._field_defs: list[FieldDef] = []
         self._flag_names: list[str] = []
-        self._num_cols: int = _NUM_BASE_COLS + 1  # base + category initially
         self._pool_fields: list[list] = []
         self._pool_rows: list[ft.Container] = []
 
@@ -155,6 +104,14 @@ class FileDisplay:
             tooltip="Toggle multi-select mode",
             on_click=self._toggle_multi_select,
             icon_color=ft.Colors.GREY,
+        )
+        self._undo_btn = ft.IconButton(
+            icon=ft.Icons.UNDO,
+            tooltip="Undo is not implemented yet.",
+        )
+        self._redo_btn = ft.IconButton(
+            icon=ft.Icons.REDO,
+            tooltip="Redo is not implemented yet.",
         )
         self._search_field = ft.TextField(
             label="Search",
@@ -201,26 +158,6 @@ class FileDisplay:
         )
         self._col_widths: list[int] = []
 
-        self._detail_header = ft.Text("", size=14, weight=ft.FontWeight.BOLD)
-        self._batch_header = ft.Text("", size=14, weight=ft.FontWeight.BOLD)
-        self._detail_usage_chips = ft.Row(wrap=True, spacing=4, run_spacing=4)
-        self._detail_usage_add = ft.PopupMenuButton(
-            icon=ft.Icons.ADD_CIRCLE_OUTLINED,
-            tooltip="Add Usage",
-            items=[
-                ft.PopupMenuItem(content=ft.Text(u), on_click=lambda e, v=u: self._on_detail_usage_add(v))
-                for u in USAGES
-            ],
-        )
-        self._detail_value_chips = ft.Row(wrap=True, spacing=4, run_spacing=4)
-        self._detail_value_add = ft.PopupMenuButton(
-            icon=ft.Icons.ADD_CIRCLE_OUTLINED,
-            tooltip="Add Value",
-            items=[
-                ft.PopupMenuItem(content=ft.Text(v), on_click=lambda e, v=v: self._on_detail_value_add(v))
-                for v in VALUES_LIST
-            ],
-        )
         self._tips_switcher = ft.AnimatedSwitcher(
             content=ft.Text(_TIPS[0], size=11, italic=True, color=ft.Colors.GREY_500),
             transition=ft.AnimatedSwitcherTransition.FADE,
@@ -235,21 +172,9 @@ class FileDisplay:
             alignment=ft.Alignment.CENTER,
             expand=True,
         )
-        self._detail_content = ft.Column([
-            self._detail_header,
-            ft.Divider(height=8),
-            ft.Text("Usage", size=12, weight=ft.FontWeight.BOLD),
-            self._detail_usage_chips,
-            self._detail_usage_add,
-            ft.Divider(height=8),
-            ft.Text("Value", size=12, weight=ft.FontWeight.BOLD),
-            self._detail_value_chips,
-            self._detail_value_add,
-            ft.Divider(height=8),
-            ft.Container(expand=True),
-            self._tips_switcher,
-        ])
-        self._detail_panel = ft.Container(
+        self._detail_panel = detail_panel or DetailPanel(self._page, self._tips_switcher, on_changed=lambda: self._on_field_change(None))
+        self._batch_panel = batch_panel or BatchPanel(self._page, self._tips_switcher, on_batch_apply=self._on_batch_action)
+        self._detail_container = ft.Container(
             width=400,
             padding=10,
             content=self._detail_placeholder,
@@ -268,6 +193,9 @@ class FileDisplay:
                             [
                                 ft.Button("Save", icon=ft.Icons.SAVE, on_click=self._save),
                                 self._multi_btn,
+                                self._undo_btn,
+                                self._redo_btn,
+                                ft.Divider(),
                                 self._save_status,
                             ],
                             alignment=ft.MainAxisAlignment.START,
@@ -296,7 +224,7 @@ class FileDisplay:
                             border_radius=8,
                             expand=True,
                         ),
-                                self._detail_panel,
+                                self._detail_container,
                             ],
                             expand=True,
                         ),
@@ -320,42 +248,28 @@ class FileDisplay:
         )
 
     def _init_dynamic(self) -> None:
-        self._num_cols = _NUM_BASE_COLS + len(self._flag_names) + 1
+        self._field_defs = list(STATIC_FIELD_DEFS)
 
-        col_names = ["Name", "Nominal", "Lifetime", "Restock", "Min", "QuantMin", "QuantMax", "Cost"]
         for fn in self._flag_names:
-            col_names.append(fn)
-        col_names.append("Category")
+            width = max(60, len(fn) * 8 + 24)
+            self._field_defs.append(FieldDef(fn, fn, FieldType.FLAG, width=width))
 
-        self._col_widths = [
-            200,   # Name
-            88,    # Nominal
-            96,    # Lifetime
-            88,    # Restock
-            48,    # Min
-            96,    # QuantMin
-            96,    # QuantMax
-            56,    # Cost
-        ]
-        for fn in self._flag_names:
-            self._col_widths.append(max(60, len(fn) * 8 + 24))
-        self._col_widths.append(150)  # Category
-        table_width = sum(self._col_widths) + (self._num_cols - 1) * 6
+        self._field_defs.append(FieldDef(
+            "category", "Category", FieldType.SINGLE_NAMED,
+            width=150, options=CATEGORIES,
+        ))
 
-        align_left = ft.TextAlign.LEFT
+        self._col_widths = [fd.width for fd in self._field_defs]
+        table_width = sum(self._col_widths) + (len(self._field_defs) - 1) * 6
+
         align_right = ft.TextAlign.RIGHT
-        self._align = [align_left] + [align_right] * 7 + [align_left] * len(self._flag_names) + [align_left]
-
-        flag_offset = _NUM_BASE_COLS
-        cat_idx = flag_offset + len(self._flag_names)
-
         header_cells = []
-        for ci in range(self._num_cols):
-            text_align = self._align[ci]
-            cell_align = ft.Alignment.CENTER_LEFT if text_align == align_left else ft.Alignment.CENTER_RIGHT
+        for fd in self._field_defs:
+            text_align = align_right if fd.align == align_right else ft.TextAlign.LEFT
+            cell_align = ft.Alignment.CENTER_RIGHT if text_align == align_right else ft.Alignment.CENTER_LEFT
             hc = ft.Container(
-                content=ft.Text(col_names[ci], size=12, weight=ft.FontWeight.BOLD, text_align=text_align),
-                width=self._col_widths[ci],
+                content=ft.Text(fd.label, size=12, weight=ft.FontWeight.BOLD, text_align=text_align),
+                width=fd.width,
                 height=36,
                 alignment=cell_align,
                 padding=ft.Padding(left=12, right=12, top=0, bottom=0),
@@ -370,8 +284,8 @@ class FileDisplay:
         for ri in range(PAGE_SIZE):
             fields = []
             row_cells = []
-            for ci in range(self._num_cols):
-                if ci == cat_idx:
+            for ci, fd in enumerate(self._field_defs):
+                if fd.is_single_named():
                     w = ft.Dropdown(
                         value="",
                         dense=True,
@@ -381,13 +295,13 @@ class FileDisplay:
                         border_color=ft.Colors.with_opacity(0.5, ft.Colors.OUTLINE),
                         focused_border_color=ft.Colors.PRIMARY,
                         filled=False,
-                        options=[ft.DropdownOption(key="", text="")] + [ft.DropdownOption(key=c) for c in CATEGORIES],
+                        options=[ft.DropdownOption(key="", text="")] + [ft.DropdownOption(key=c) for c in (fd.options or [])],
                         on_select=self._on_field_change,
                         hover_color=ft.Colors.TRANSPARENT,
                         on_focus=lambda e, idx=ri: self._on_row_click(idx),
                         expand=True,
                     )
-                elif ci >= flag_offset and ci < cat_idx:
+                elif fd.is_flag():
                     w = ft.Checkbox(
                         label="",
                         value=False,
@@ -399,7 +313,7 @@ class FileDisplay:
                         value="",
                         dense=True,
                         text_size=12,
-                        text_align=self._align[ci],
+                        text_align=fd.align,
                         min_lines=1,
                         max_lines=1,
                         on_change=self._on_field_change,
@@ -410,21 +324,18 @@ class FileDisplay:
                         expand=True,
                     )
                 fields.append(w)
-                if flag_offset <= ci < cat_idx:
+
+                if fd.is_flag():
                     cell = ft.Container(
-                        content=ft.Row(
-                            [w],
-                            alignment=ft.MainAxisAlignment.CENTER,
-                        ),
-                        width=self._col_widths[ci],
+                        content=ft.Row([w], alignment=ft.MainAxisAlignment.CENTER),
+                        width=fd.width,
                         alignment=ft.Alignment.CENTER,
                     )
                 else:
-                    cell = ft.Container(
-                        content=w,
-                        width=self._col_widths[ci],
-                    )
+                    cell = ft.Container(content=w, width=fd.width)
+
                 row_cells.append(cell)
+
             self._pool_fields.append(fields)
             self._pool_rows.append(ft.Container(
                 content=ft.Row(row_cells, spacing=6),
@@ -448,28 +359,20 @@ class FileDisplay:
         self._dirty = False
         self._prev_count = 0
 
-        if path in _cache:
-            self._rows = _cache[path]
-        else:
-            try:
-                tree = ET.parse(path)
-                _cache_trees[path] = tree
-                root = tree.getroot()
-                self._rows = [_build_row(t) for t in root.findall("type")]
-                _cache[path] = self._rows
-            except Exception as ex:
-                self.control.content = ft.Container(
-                    content=ft.Text(f"Error parsing file: {ex}", selectable=True),
-                    padding=10,
-                )
-                self.control.visible = True
-                return
+        try:
+            self._rows = self.xml_repo.parse_file(path)
+        except Exception as ex:
+            self.control.content = ft.Container(
+                content=ft.Text(f"Error parsing file: {ex}", selectable=True),
+                padding=10,
+            )
+            self.control.visible = True
+            return
 
         self._flag_names = _collect_flag_names(self._rows)
         self._init_dynamic()
-        self._batch_panel = None
-        self._batch_fields.clear()
-        self._batch_flag_checkboxes.clear()
+        self._batch_panel.hide()
+        self._detail_panel.hide()
 
         self._clear_selection()
         self._apply_filter("")
@@ -552,7 +455,7 @@ class FileDisplay:
         self._drag_start_slot = pool_slot
 
     def _on_row_hover(self, e, pool_slot: int) -> None:
-        if not e.data:  # hover exit
+        if not e.data:
             return
         if not self._shift_pressed or not self._mouse_down:
             return
@@ -579,199 +482,88 @@ class FileDisplay:
         self._render_page()
         self.control.update()
 
+    @property
+    def _detail_usage_set(self) -> set[str]:
+        if self._detail_panel._usage_chipset is not None:
+            return self._detail_panel._usage_chipset._values
+        return set()
+
+    @property
+    def _detail_value_set(self) -> set[str]:
+        if self._detail_panel._value_chipset is not None:
+            return self._detail_panel._value_chipset._values
+        return set()
+
+    @property
+    def _batch_fields(self) -> dict:
+        return self._batch_panel._field_controls
+
+    @property
+    def _batch_flag_checkboxes(self) -> dict:
+        return self._batch_panel._flag_checkboxes
+
     def _sync_detail_panel(self) -> None:
         if self._selected_row_idx is not None and len(self._selected_row_indices) <= 1:
-            usage = ", ".join(sorted(self._detail_usage_set))
-            value = ", ".join(sorted(self._detail_value_set))
-            self._rows[self._selected_row_idx].fields[9] = usage
-            self._rows[self._selected_row_idx].fields[10] = value
-            if usage or value:
-                self._dirty = True
+            if self._detail_panel._usage_chipset and self._detail_panel._value_chipset:
+                usage = ", ".join(self._detail_panel._usage_chipset.get_values())
+                value = ", ".join(self._detail_panel._value_chipset.get_values())
+                self._rows[self._selected_row_idx].values["usage"] = usage
+                self._rows[self._selected_row_idx].values["value"] = value
+                if usage or value:
+                    self._dirty = True
 
     def _update_detail_panel(self) -> None:
         if len(self._selected_row_indices) >= 2:
-            if self._batch_panel is None:
-                self._build_batch_panel()
-            self._batch_header.value = f"Batch edit: {len(self._selected_row_indices)} rows selected"
-            self._detail_panel.content = self._batch_panel
+            self._batch_panel.show(
+                f"Batch edit: {len(self._selected_row_indices)} rows selected",
+                USAGES,
+                VALUES_LIST,
+                self._flag_names,
+            )
+            self._detail_container.content = self._batch_panel.build()
         elif len(self._selected_row_indices) == 1:
-            self._detail_panel.content = self._detail_content
+            self._detail_container.content = self._detail_panel.build()
         else:
-            self._detail_panel.content = self._detail_placeholder
+            self._detail_container.content = self._detail_placeholder
 
     def _load_detail_panel(self) -> None:
-        row = self._rows[self._selected_row_idx].fields
-        self._detail_usage_set = {x.strip() for x in row[9].split(",") if x.strip()}
-        self._detail_value_set = {x.strip() for x in row[10].split(",") if x.strip()}
-        self._detail_header.value = f"Selected: {row[0]}"
-        self._refresh_detail_chips()
-        self._detail_panel.content = self._detail_content
+        row = self._rows[self._selected_row_idx]
+        self._detail_panel.show(row, USAGES, VALUES_LIST)
 
-    def _refresh_detail_chips(self) -> None:
-        self._detail_usage_chips.controls = [
-            ft.Chip(label=ft.Text(s), on_delete=lambda _, v=s: self._detail_remove_usage(v))
-            for s in sorted(self._detail_usage_set)
-        ]
-        self._detail_value_chips.controls = [
-            ft.Chip(label=ft.Text(s), on_delete=lambda _, v=s: self._detail_remove_value(v))
-            for s in sorted(self._detail_value_set)
-        ]
+    def _on_batch_action(self, key: str) -> None:
+        if key == "category":
+            self._batch_save_category()
+        elif key == "usage":
+            self._batch_save_usage()
+        elif key == "value":
+            self._batch_save_value()
+        elif key.startswith("flag:"):
+            self._batch_save_flag(key[5:])
+        else:
+            self._batch_save_field(key)
 
-    def _on_detail_usage_add(self, v: str) -> None:
-        if v:
-            self._detail_usage_set.add(v)
-            self._refresh_detail_chips()
-            self._on_field_change(None)
-
-    def _detail_remove_usage(self, v: str) -> None:
-        self._detail_usage_set.discard(v)
-        self._refresh_detail_chips()
-        self._on_field_change(None)
-
-    def _on_detail_value_add(self, v: str) -> None:
-        if v:
-            self._detail_value_set.add(v)
-            self._refresh_detail_chips()
-            self._on_field_change(None)
-
-    def _detail_remove_value(self, v: str) -> None:
-        self._detail_value_set.discard(v)
-        self._refresh_detail_chips()
-        self._on_field_change(None)
-
-    def _build_batch_panel(self) -> None:
-        self._batch_fields = {}
-        self._batch_flag_checkboxes = {}
-        self._batch_usage_set: set[str] = set()
-        self._batch_value_set: set[str] = set()
-        rows = [self._batch_header, ft.Divider(height=4)]
-
-        for label, col_idx, hint in [
-            ("Nominal", 1, ""),
-            ("Lifetime", 2, ""),
-            ("Restock", 3, ""),
-            ("Min", 4, ""),
-            ("QuantMin", 5, ""),
-            ("QuantMax", 6, ""),
-            ("Cost", 7, ""),
-        ]:
-            tf = ft.TextField(
-                value="", dense=True, text_size=12,
-                hint_text=hint, expand=True,
-            )
-            self._batch_fields[f"field_{col_idx}"] = tf
-            rows.append(ft.Row([
-                ft.Text(label, width=70, size=12),
-                tf,
-                ft.IconButton(
-                    icon=ft.Icons.SAVE, icon_size=18, tooltip=f"Set {label}",
-                    on_click=lambda e, ci=col_idx: self._batch_save_field(ci),
-                ),
-            ], spacing=4, vertical_alignment=ft.CrossAxisAlignment.CENTER))
-
-        cat_dd = ft.Dropdown(
-            value="", dense=True, text_size=12,
-            expand=True,
-            options=[ft.DropdownOption(key="", text="")] + [ft.DropdownOption(key=c) for c in CATEGORIES],
-        )
-        self._batch_fields["category"] = cat_dd
-        rows.append(ft.Row([
-            ft.Text("Category", width=70, size=12),
-            cat_dd,
-            ft.IconButton(
-                icon=ft.Icons.SAVE, icon_size=18, tooltip="Set Category",
-                on_click=lambda e: self._batch_save_category(),
-            ),
-        ], spacing=4, vertical_alignment=ft.CrossAxisAlignment.CENTER))
-
-        rows.append(ft.Divider(height=4))
-
-        self._batch_usage_chips = ft.Row(wrap=True, spacing=4, run_spacing=4)
-        self._batch_usage_add = ft.PopupMenuButton(
-            icon=ft.Icons.ADD_CIRCLE_OUTLINED,
-            tooltip="Add Usage",
-            items=[
-                ft.PopupMenuItem(content=ft.Text(u), on_click=lambda e, v=u: self._on_batch_usage_add(v))
-                for u in USAGES
-            ],
-        )
-        rows.append(ft.Text("Usage", size=12, weight=ft.FontWeight.BOLD))
-        rows.append(self._batch_usage_chips)
-        rows.append(ft.Row([
-            self._batch_usage_add,
-            ft.IconButton(
-                icon=ft.Icons.SAVE, icon_size=18, tooltip="Apply Usage",
-                on_click=lambda e: self._batch_save_usage(),
-            ),
-        ]))
-
-        rows.append(ft.Divider(height=4))
-
-        self._batch_value_chips = ft.Row(wrap=True, spacing=4, run_spacing=4)
-        self._batch_value_add = ft.PopupMenuButton(
-            icon=ft.Icons.ADD_CIRCLE_OUTLINED,
-            tooltip="Add Value",
-            items=[
-                ft.PopupMenuItem(content=ft.Text(v), on_click=lambda e, v=v: self._on_batch_value_add(v))
-                for v in VALUES_LIST
-            ],
-        )
-        rows.append(ft.Text("Value", size=12, weight=ft.FontWeight.BOLD))
-        rows.append(self._batch_value_chips)
-        rows.append(ft.Row([
-            self._batch_value_add,
-            ft.IconButton(
-                icon=ft.Icons.SAVE, icon_size=18, tooltip="Apply Value",
-                on_click=lambda e: self._batch_save_value(),
-            ),
-        ]))
-
-        if self._flag_names:
-            rows.append(ft.Divider(height=4))
-            rows.append(ft.Text("Flags", size=12, weight=ft.FontWeight.BOLD))
-            for fn in self._flag_names:
-                cb = ft.Checkbox(label="", value=False)
-                self._batch_flag_checkboxes[fn] = cb
-                rows.append(ft.Row([
-                    ft.Text(f"  {fn}", width=130, size=12),
-                    cb,
-                    ft.IconButton(
-                        icon=ft.Icons.SAVE, icon_size=18, tooltip=f"Set {fn}",
-                        on_click=lambda e, flag=fn: self._batch_save_flag(flag),
-                    ),
-                ], spacing=4, vertical_alignment=ft.CrossAxisAlignment.CENTER))
-
-        rows.append(ft.Container(expand=True))
-        rows.append(self._tips_switcher)
-
-        self._batch_panel = ft.Container(
-            content=ft.Column(rows, spacing=4, scroll=ft.ScrollMode.AUTO),
-            padding=10,
-        )
-
-    def _batch_save_field(self, col_idx: int) -> None:
+    def _batch_save_field(self, field_key: str) -> None:
         self._sync_page_back()
-        w = self._batch_fields.get(f"field_{col_idx}")
+        w = self._batch_panel._field_controls.get(field_key)
         if w is None:
             return
         value = w.value or ""
-        labels = ["", "Nominal", "Lifetime", "Restock", "Min", "QuantMin", "QuantMax", "Cost"]
         for idx in self._selected_row_indices:
-            self._rows[idx].fields[col_idx] = value
+            self._rows[idx].values[field_key] = value
         self._dirty = True
         self._render_page()
-        self._save_status.value = f"{labels[col_idx]} applied to {len(self._selected_row_indices)} rows"
+        self._save_status.value = f"{field_key} applied to {len(self._selected_row_indices)} rows"
         self._save_status.color = ft.Colors.GREEN
         self.control.update()
 
     def _batch_save_category(self) -> None:
         self._sync_page_back()
-        w = self._batch_fields.get("category")
+        w = self._batch_panel._field_controls.get("category")
         if w is None:
             return
         value = w.value or ""
         for idx in self._selected_row_indices:
-            self._rows[idx].fields[8] = value
+            self._rows[idx].values["category"] = value
         self._dirty = True
         self._render_page()
         self._save_status.value = f"Category applied to {len(self._selected_row_indices)} rows"
@@ -780,9 +572,9 @@ class FileDisplay:
 
     def _batch_save_usage(self) -> None:
         self._sync_page_back()
-        parts = ", ".join(sorted(self._batch_usage_set))
+        parts = ", ".join(self._batch_panel._usage_chipset.get_values())
         for idx in self._selected_row_indices:
-            self._rows[idx].fields[9] = parts
+            self._rows[idx].values["usage"] = parts
         self._dirty = True
         self._render_page()
         self._save_status.value = f"Usage applied to {len(self._selected_row_indices)} rows"
@@ -791,52 +583,18 @@ class FileDisplay:
 
     def _batch_save_value(self) -> None:
         self._sync_page_back()
-        parts = ", ".join(sorted(self._batch_value_set))
+        parts = ", ".join(self._batch_panel._value_chipset.get_values())
         for idx in self._selected_row_indices:
-            self._rows[idx].fields[10] = parts
+            self._rows[idx].values["value"] = parts
         self._dirty = True
         self._render_page()
         self._save_status.value = f"Value applied to {len(self._selected_row_indices)} rows"
         self._save_status.color = ft.Colors.GREEN
         self.control.update()
 
-    def _on_batch_usage_add(self, v: str) -> None:
-        if v:
-            self._batch_usage_set.add(v)
-            self._refresh_batch_usage_chips()
-            self._on_field_change(None)
-
-    def _batch_remove_usage(self, v: str) -> None:
-        self._batch_usage_set.discard(v)
-        self._refresh_batch_usage_chips()
-        self._on_field_change(None)
-
-    def _on_batch_value_add(self, v: str) -> None:
-        if v:
-            self._batch_value_set.add(v)
-            self._refresh_batch_value_chips()
-            self._on_field_change(None)
-
-    def _batch_remove_value(self, v: str) -> None:
-        self._batch_value_set.discard(v)
-        self._refresh_batch_value_chips()
-        self._on_field_change(None)
-
-    def _refresh_batch_usage_chips(self) -> None:
-        self._batch_usage_chips.controls = [
-            ft.Chip(label=ft.Text(s), on_delete=lambda _, v=s: self._batch_remove_usage(v))
-            for s in sorted(self._batch_usage_set)
-        ]
-
-    def _refresh_batch_value_chips(self) -> None:
-        self._batch_value_chips.controls = [
-            ft.Chip(label=ft.Text(s), on_delete=lambda _, v=s: self._batch_remove_value(v))
-            for s in sorted(self._batch_value_set)
-        ]
-
     def _batch_save_flag(self, flag_name: str) -> None:
         self._sync_page_back()
-        cb = self._batch_flag_checkboxes.get(flag_name)
+        cb = self._batch_panel._flag_checkboxes.get(flag_name)
         if cb is None:
             return
         value = "1" if cb.value else "0"
@@ -850,31 +608,42 @@ class FileDisplay:
 
     def _clear_selection(self) -> None:
         self._mouse_down = False
-        self._detail_panel.content = self._detail_placeholder
+        self._detail_panel.hide()
+        self._detail_container.content = self._detail_placeholder
         self._selected_row_idx = None
         self._selected_row_indices.clear()
-        self._detail_usage_set.clear()
-        self._detail_value_set.clear()
+
+    def _on_detail_usage_add(self, v: str) -> None:
+        if self._detail_panel._usage_chipset:
+            self._detail_panel._usage_chipset.add(v)
+
+    def _detail_remove_usage(self, v: str) -> None:
+        if self._detail_panel._usage_chipset:
+            self._detail_panel._usage_chipset.remove(v)
+
+    def _on_detail_value_add(self, v: str) -> None:
+        if self._detail_panel._value_chipset:
+            self._detail_panel._value_chipset.add(v)
+
+    def _detail_remove_value(self, v: str) -> None:
+        if self._detail_panel._value_chipset:
+            self._detail_panel._value_chipset.remove(v)
 
     def _sync_page_back(self) -> None:
         if self._path is None or not self._dirty:
             return
         start = self._page_idx * PAGE_SIZE
-        flag_offset = _NUM_BASE_COLS
         for i in range(len(self._body_column.controls)):
             row_idx = self._filtered[start + i] if start + i < len(self._filtered) else -1
             if row_idx < 0:
                 break
             row_data = self._rows[row_idx]
-            for j in range(self._num_cols):
+            for j, fd in enumerate(self._field_defs):
                 widget = self._pool_fields[i][j]
-                if flag_offset <= j < flag_offset + len(self._flag_names):
-                    flag_name = self._flag_names[j - flag_offset]
-                    row_data.flags[flag_name] = "1" if widget.value else "0"
-                elif j < flag_offset:
-                    row_data.fields[j] = widget.value
+                if fd.is_flag():
+                    row_data.flags[fd.key] = "1" if widget.value else "0"
                 else:
-                    row_data.fields[_NUM_BASE_COLS] = widget.value
+                    row_data.values[fd.key] = widget.value
         self._dirty = False
 
     def _apply_filter(self, query: str) -> None:
@@ -885,10 +654,10 @@ class FileDisplay:
 
         self._filtered = [
             i for i, row in enumerate(self._rows)
-            if (not search_parts or any(p in row.fields[0].lower() for p in search_parts))
-            and (not cat_parts or any(p in row.fields[8].lower() for p in cat_parts))
-            and (not usage_parts or any(p in row.fields[9].lower() for p in usage_parts))
-            and (not value_parts or any(p in row.fields[10].lower() for p in value_parts))
+            if (not search_parts or any(p in row.values["name"].lower() for p in search_parts))
+            and (not cat_parts or any(p in row.values["category"].lower() for p in cat_parts))
+            and (not usage_parts or any(p in row.values["usage"].lower() for p in usage_parts))
+            and (not value_parts or any(p in row.values["value"].lower() for p in value_parts))
         ]
 
     def _render_page(self) -> None:
@@ -900,26 +669,21 @@ class FileDisplay:
         end = min(start + PAGE_SIZE, total)
         count = end - start
 
-        flag_offset = _NUM_BASE_COLS
         self._syncing = True
         for i in range(count):
             actual_idx = self._filtered[start + i]
             row_data = self._rows[actual_idx]
-            row = row_data.fields
             self._pool_rows[i].bgcolor = ft.Colors.PRIMARY_CONTAINER if actual_idx in self._selected_row_indices else None
-            for j in range(self._num_cols):
+            for j, fd in enumerate(self._field_defs):
                 field = self._pool_fields[i][j]
-                if flag_offset <= j < flag_offset + len(self._flag_names):
-                    flag_name = self._flag_names[j - flag_offset]
-                    val = row_data.flags.get(flag_name, "0") == "1"
+                if fd.is_flag():
+                    val = row_data.flags.get(fd.key, "0") == "1"
                     if field.value != val:
                         field.value = val
-                elif j < flag_offset:
-                    if field.value != row[j]:
-                        field.value = row[j]
                 else:
-                    if field.value != row[_NUM_BASE_COLS]:
-                        field.value = row[_NUM_BASE_COLS]
+                    in_val = row_data.values.get(fd.key, "")
+                    if field.value != in_val:
+                        field.value = in_val
         self._syncing = False
 
         if self._prev_count != count:
@@ -977,70 +741,23 @@ class FileDisplay:
         self._sync_page_back()
         if self._path is None:
             return
-        tree = _cache_trees.get(self._path)
-        if tree is None:
-            return
         try:
-            for row_data in self._rows:
-                row = row_data.fields
-                elem = row_data.elem
-                elem.set("name", row[0])
-                _set_elem_text(elem, "nominal", row[1])
-                _set_elem_text(elem, "lifetime", row[2])
-                _set_elem_text(elem, "restock", row[3])
-                _set_elem_text(elem, "min", row[4])
-                _set_elem_text(elem, "quantmin", row[5])
-                _set_elem_text(elem, "quantmax", row[6])
-                _set_elem_text(elem, "cost", row[7])
-                self._update_flags(elem, row_data.flags)
-                self._update_single_named(elem, "category", row[_NUM_BASE_COLS])
-                self._update_multi_named(elem, "usage", row[9])
-                self._update_multi_named(elem, "value", row[10])
-            ET.indent(tree, space="\t")
-            tree.write(self._path, encoding="UTF-8", xml_declaration=True)
+            self.xml_repo.save(self._path, self._rows)
             self._save_status.value = "Saved"
             self._save_status.color = ft.Colors.GREEN
         except Exception as ex:
             self._save_status.value = f"Save error: {ex}"
             self._save_status.color = ft.Colors.RED
 
-    def _update_flags(self, parent: ET.Element, flags: dict[str, str]) -> None:
-        f = parent.find("flags")
-        if not flags:
-            if f is not None:
-                parent.remove(f)
-            return
-        if f is None:
-            f = ET.SubElement(parent, "flags")
-        f.attrib.clear()
-        f.attrib.update(flags)
-
-    def _update_single_named(self, parent: ET.Element, tag: str, name: str) -> None:
-        elems = parent.findall(tag)
-        existing = elems[0] if elems else None
-        if name.strip():
-            if existing is not None:
-                existing.set("name", name.strip())
-            else:
-                ET.SubElement(parent, tag).set("name", name.strip())
-        else:
-            if existing is not None:
-                parent.remove(existing)
-
-    def _update_multi_named(self, parent: ET.Element, tag: str, s: str) -> None:
-        for elem in parent.findall(tag):
-            parent.remove(elem)
-        for part in s.split(","):
-            part = part.strip()
-            if part:
-                ET.SubElement(parent, tag).set("name", part)
+    def clear_cache(self, path: str) -> None:
+        self.xml_repo.invalidate_cache(path)
 
     def clear(self) -> None:
         self._path = None
         self._rows = []
         self._filtered = []
+        self._field_defs = []
         self._flag_names = []
-        self._num_cols = _NUM_BASE_COLS + 1
         self._header_row.controls = []
         self._body_column.controls = []
         self._col_widths = []
@@ -1053,14 +770,9 @@ class FileDisplay:
         self._prev_count = 0
         self._selected_row_idx = None
         self._selected_row_indices.clear()
-        self._detail_usage_set.clear()
-        self._detail_value_set.clear()
-        self._detail_panel.content = self._detail_placeholder
-        self._batch_panel = None
-        self._batch_fields.clear()
-        self._batch_flag_checkboxes.clear()
-        self._batch_usage_set.clear()
-        self._batch_value_set.clear()
+        self._detail_panel.hide()
+        self._detail_container.content = self._detail_placeholder
+        self._batch_panel.hide()
 
         if self._tip_task is not None and not self._tip_task.done():
             self._tip_task.cancel()
