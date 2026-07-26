@@ -3,10 +3,12 @@ from __future__ import annotations
 import asyncio
 import time
 
-from dataclasses import dataclass
 from lxml import etree as ET
 
 import flet as ft
+
+from models.field_def import FieldDef, FieldType, STATIC_FIELD_DEFS
+from models.row_data import RowData
 
 
 CATEGORIES = ["clothes", "containers", "explosives", "food", "lootdispatch", "tools", "weapons"]
@@ -38,13 +40,6 @@ _TIPS = [
     "Use Prev and Next buttons to navigate between pages of results",
     "Edits are tracked as dirty until you click Save",
 ]
-
-
-@dataclass
-class RowData:
-    fields: list[str]
-    flags: dict[str, str]
-    elem: ET.Element
 
 
 PAGE_SIZE = 50
@@ -84,27 +79,24 @@ def _names_to_str(elems: list[ET.Element]) -> str:
 
 
 def _build_row(type_elem: ET.Element) -> RowData:
-    cat_elem = type_elem.find("category")
     flags_elem = type_elem.find("flags")
+    values: dict[str, str] = {}
+    for fd in STATIC_FIELD_DEFS:
+        if fd.key == "name":
+            values[fd.key] = type_elem.get("name", "")
+        else:
+            values[fd.key] = _elem_text(type_elem, fd.key)
+
+    cat_elem = type_elem.find("category")
+    values["category"] = cat_elem.get("name", "") if cat_elem is not None else ""
+    values["usage"] = _names_to_str(type_elem.findall("usage"))
+    values["value"] = _names_to_str(type_elem.findall("value"))
+
     return RowData(
-        fields=[
-            type_elem.get("name", ""),
-            _elem_text(type_elem, "nominal"),
-            _elem_text(type_elem, "lifetime"),
-            _elem_text(type_elem, "restock"),
-            _elem_text(type_elem, "min"),
-            _elem_text(type_elem, "quantmin"),
-            _elem_text(type_elem, "quantmax"),
-            _elem_text(type_elem, "cost"),
-            cat_elem.get("name", "") if cat_elem is not None else "",
-            _names_to_str(type_elem.findall("usage")),
-            _names_to_str(type_elem.findall("value")),
-        ],
+        values=values,
         flags={k: v for k, v in flags_elem.attrib.items()} if flags_elem is not None else {},
-        elem=type_elem)
-
-
-_NUM_BASE_COLS = 8  # name, nominal, lifetime, restock, min, quantmin, quantmax, cost
+        elem=type_elem,
+    )
 
 
 class FileDisplay:
@@ -139,9 +131,8 @@ class FileDisplay:
         self._batch_usage_set: set[str] = set()
         self._batch_value_set: set[str] = set()
 
-
+        self._field_defs: list[FieldDef] = []
         self._flag_names: list[str] = []
-        self._num_cols: int = _NUM_BASE_COLS + 1  # base + category initially
         self._pool_fields: list[list] = []
         self._pool_rows: list[ft.Container] = []
 
@@ -320,42 +311,28 @@ class FileDisplay:
         )
 
     def _init_dynamic(self) -> None:
-        self._num_cols = _NUM_BASE_COLS + len(self._flag_names) + 1
+        self._field_defs = list(STATIC_FIELD_DEFS)
 
-        col_names = ["Name", "Nominal", "Lifetime", "Restock", "Min", "QuantMin", "QuantMax", "Cost"]
         for fn in self._flag_names:
-            col_names.append(fn)
-        col_names.append("Category")
+            width = max(60, len(fn) * 8 + 24)
+            self._field_defs.append(FieldDef(fn, fn, FieldType.FLAG, width=width))
 
-        self._col_widths = [
-            200,   # Name
-            88,    # Nominal
-            96,    # Lifetime
-            88,    # Restock
-            48,    # Min
-            96,    # QuantMin
-            96,    # QuantMax
-            56,    # Cost
-        ]
-        for fn in self._flag_names:
-            self._col_widths.append(max(60, len(fn) * 8 + 24))
-        self._col_widths.append(150)  # Category
-        table_width = sum(self._col_widths) + (self._num_cols - 1) * 6
+        self._field_defs.append(FieldDef(
+            "category", "Category", FieldType.SINGLE_NAMED,
+            width=150, options=CATEGORIES,
+        ))
 
-        align_left = ft.TextAlign.LEFT
+        self._col_widths = [fd.width for fd in self._field_defs]
+        table_width = sum(self._col_widths) + (len(self._field_defs) - 1) * 6
+
         align_right = ft.TextAlign.RIGHT
-        self._align = [align_left] + [align_right] * 7 + [align_left] * len(self._flag_names) + [align_left]
-
-        flag_offset = _NUM_BASE_COLS
-        cat_idx = flag_offset + len(self._flag_names)
-
         header_cells = []
-        for ci in range(self._num_cols):
-            text_align = self._align[ci]
-            cell_align = ft.Alignment.CENTER_LEFT if text_align == align_left else ft.Alignment.CENTER_RIGHT
+        for fd in self._field_defs:
+            text_align = align_right if fd.align == align_right else ft.TextAlign.LEFT
+            cell_align = ft.Alignment.CENTER_RIGHT if text_align == align_right else ft.Alignment.CENTER_LEFT
             hc = ft.Container(
-                content=ft.Text(col_names[ci], size=12, weight=ft.FontWeight.BOLD, text_align=text_align),
-                width=self._col_widths[ci],
+                content=ft.Text(fd.label, size=12, weight=ft.FontWeight.BOLD, text_align=text_align),
+                width=fd.width,
                 height=36,
                 alignment=cell_align,
                 padding=ft.Padding(left=12, right=12, top=0, bottom=0),
@@ -370,8 +347,8 @@ class FileDisplay:
         for ri in range(PAGE_SIZE):
             fields = []
             row_cells = []
-            for ci in range(self._num_cols):
-                if ci == cat_idx:
+            for ci, fd in enumerate(self._field_defs):
+                if fd.is_single_named():
                     w = ft.Dropdown(
                         value="",
                         dense=True,
@@ -381,13 +358,13 @@ class FileDisplay:
                         border_color=ft.Colors.with_opacity(0.5, ft.Colors.OUTLINE),
                         focused_border_color=ft.Colors.PRIMARY,
                         filled=False,
-                        options=[ft.DropdownOption(key="", text="")] + [ft.DropdownOption(key=c) for c in CATEGORIES],
+                        options=[ft.DropdownOption(key="", text="")] + [ft.DropdownOption(key=c) for c in (fd.options or [])],
                         on_select=self._on_field_change,
                         hover_color=ft.Colors.TRANSPARENT,
                         on_focus=lambda e, idx=ri: self._on_row_click(idx),
                         expand=True,
                     )
-                elif ci >= flag_offset and ci < cat_idx:
+                elif fd.is_flag():
                     w = ft.Checkbox(
                         label="",
                         value=False,
@@ -399,7 +376,7 @@ class FileDisplay:
                         value="",
                         dense=True,
                         text_size=12,
-                        text_align=self._align[ci],
+                        text_align=fd.align,
                         min_lines=1,
                         max_lines=1,
                         on_change=self._on_field_change,
@@ -410,21 +387,18 @@ class FileDisplay:
                         expand=True,
                     )
                 fields.append(w)
-                if flag_offset <= ci < cat_idx:
+
+                if fd.is_flag():
                     cell = ft.Container(
-                        content=ft.Row(
-                            [w],
-                            alignment=ft.MainAxisAlignment.CENTER,
-                        ),
-                        width=self._col_widths[ci],
+                        content=ft.Row([w], alignment=ft.MainAxisAlignment.CENTER),
+                        width=fd.width,
                         alignment=ft.Alignment.CENTER,
                     )
                 else:
-                    cell = ft.Container(
-                        content=w,
-                        width=self._col_widths[ci],
-                    )
+                    cell = ft.Container(content=w, width=fd.width)
+
                 row_cells.append(cell)
+
             self._pool_fields.append(fields)
             self._pool_rows.append(ft.Container(
                 content=ft.Row(row_cells, spacing=6),
@@ -552,7 +526,7 @@ class FileDisplay:
         self._drag_start_slot = pool_slot
 
     def _on_row_hover(self, e, pool_slot: int) -> None:
-        if not e.data:  # hover exit
+        if not e.data:
             return
         if not self._shift_pressed or not self._mouse_down:
             return
@@ -583,8 +557,8 @@ class FileDisplay:
         if self._selected_row_idx is not None and len(self._selected_row_indices) <= 1:
             usage = ", ".join(sorted(self._detail_usage_set))
             value = ", ".join(sorted(self._detail_value_set))
-            self._rows[self._selected_row_idx].fields[9] = usage
-            self._rows[self._selected_row_idx].fields[10] = value
+            self._rows[self._selected_row_idx].values["usage"] = usage
+            self._rows[self._selected_row_idx].values["value"] = value
             if usage or value:
                 self._dirty = True
 
@@ -600,10 +574,10 @@ class FileDisplay:
             self._detail_panel.content = self._detail_placeholder
 
     def _load_detail_panel(self) -> None:
-        row = self._rows[self._selected_row_idx].fields
-        self._detail_usage_set = {x.strip() for x in row[9].split(",") if x.strip()}
-        self._detail_value_set = {x.strip() for x in row[10].split(",") if x.strip()}
-        self._detail_header.value = f"Selected: {row[0]}"
+        row = self._rows[self._selected_row_idx].values
+        self._detail_usage_set = {x.strip() for x in row["usage"].split(",") if x.strip()}
+        self._detail_value_set = {x.strip() for x in row["value"].split(",") if x.strip()}
+        self._detail_header.value = f"Selected: {row['name']}"
         self._refresh_detail_chips()
         self._detail_panel.content = self._detail_content
 
@@ -642,30 +616,21 @@ class FileDisplay:
     def _build_batch_panel(self) -> None:
         self._batch_fields = {}
         self._batch_flag_checkboxes = {}
-        self._batch_usage_set: set[str] = set()
-        self._batch_value_set: set[str] = set()
+        self._batch_usage_set = set()
+        self._batch_value_set = set()
         rows = [self._batch_header, ft.Divider(height=4)]
 
-        for label, col_idx, hint in [
-            ("Nominal", 1, ""),
-            ("Lifetime", 2, ""),
-            ("Restock", 3, ""),
-            ("Min", 4, ""),
-            ("QuantMin", 5, ""),
-            ("QuantMax", 6, ""),
-            ("Cost", 7, ""),
-        ]:
-            tf = ft.TextField(
-                value="", dense=True, text_size=12,
-                hint_text=hint, expand=True,
-            )
-            self._batch_fields[f"field_{col_idx}"] = tf
+        for fd in STATIC_FIELD_DEFS:
+            if fd.key == "name":
+                continue
+            tf = ft.TextField(value="", dense=True, text_size=12, hint_text="", expand=True)
+            self._batch_fields[fd.key] = tf
             rows.append(ft.Row([
-                ft.Text(label, width=70, size=12),
+                ft.Text(fd.label, width=70, size=12),
                 tf,
                 ft.IconButton(
-                    icon=ft.Icons.SAVE, icon_size=18, tooltip=f"Set {label}",
-                    on_click=lambda e, ci=col_idx: self._batch_save_field(ci),
+                    icon=ft.Icons.SAVE, icon_size=18, tooltip=f"Set {fd.label}",
+                    on_click=lambda e, k=fd.key: self._batch_save_field(k),
                 ),
             ], spacing=4, vertical_alignment=ft.CrossAxisAlignment.CENTER))
 
@@ -749,18 +714,17 @@ class FileDisplay:
             padding=10,
         )
 
-    def _batch_save_field(self, col_idx: int) -> None:
+    def _batch_save_field(self, field_key: str) -> None:
         self._sync_page_back()
-        w = self._batch_fields.get(f"field_{col_idx}")
+        w = self._batch_fields.get(field_key)
         if w is None:
             return
         value = w.value or ""
-        labels = ["", "Nominal", "Lifetime", "Restock", "Min", "QuantMin", "QuantMax", "Cost"]
         for idx in self._selected_row_indices:
-            self._rows[idx].fields[col_idx] = value
+            self._rows[idx].values[field_key] = value
         self._dirty = True
         self._render_page()
-        self._save_status.value = f"{labels[col_idx]} applied to {len(self._selected_row_indices)} rows"
+        self._save_status.value = f"{field_key} applied to {len(self._selected_row_indices)} rows"
         self._save_status.color = ft.Colors.GREEN
         self.control.update()
 
@@ -771,7 +735,7 @@ class FileDisplay:
             return
         value = w.value or ""
         for idx in self._selected_row_indices:
-            self._rows[idx].fields[8] = value
+            self._rows[idx].values["category"] = value
         self._dirty = True
         self._render_page()
         self._save_status.value = f"Category applied to {len(self._selected_row_indices)} rows"
@@ -782,7 +746,7 @@ class FileDisplay:
         self._sync_page_back()
         parts = ", ".join(sorted(self._batch_usage_set))
         for idx in self._selected_row_indices:
-            self._rows[idx].fields[9] = parts
+            self._rows[idx].values["usage"] = parts
         self._dirty = True
         self._render_page()
         self._save_status.value = f"Usage applied to {len(self._selected_row_indices)} rows"
@@ -793,7 +757,7 @@ class FileDisplay:
         self._sync_page_back()
         parts = ", ".join(sorted(self._batch_value_set))
         for idx in self._selected_row_indices:
-            self._rows[idx].fields[10] = parts
+            self._rows[idx].values["value"] = parts
         self._dirty = True
         self._render_page()
         self._save_status.value = f"Value applied to {len(self._selected_row_indices)} rows"
@@ -860,21 +824,17 @@ class FileDisplay:
         if self._path is None or not self._dirty:
             return
         start = self._page_idx * PAGE_SIZE
-        flag_offset = _NUM_BASE_COLS
         for i in range(len(self._body_column.controls)):
             row_idx = self._filtered[start + i] if start + i < len(self._filtered) else -1
             if row_idx < 0:
                 break
             row_data = self._rows[row_idx]
-            for j in range(self._num_cols):
+            for j, fd in enumerate(self._field_defs):
                 widget = self._pool_fields[i][j]
-                if flag_offset <= j < flag_offset + len(self._flag_names):
-                    flag_name = self._flag_names[j - flag_offset]
-                    row_data.flags[flag_name] = "1" if widget.value else "0"
-                elif j < flag_offset:
-                    row_data.fields[j] = widget.value
+                if fd.is_flag():
+                    row_data.flags[fd.key] = "1" if widget.value else "0"
                 else:
-                    row_data.fields[_NUM_BASE_COLS] = widget.value
+                    row_data.values[fd.key] = widget.value
         self._dirty = False
 
     def _apply_filter(self, query: str) -> None:
@@ -885,10 +845,10 @@ class FileDisplay:
 
         self._filtered = [
             i for i, row in enumerate(self._rows)
-            if (not search_parts or any(p in row.fields[0].lower() for p in search_parts))
-            and (not cat_parts or any(p in row.fields[8].lower() for p in cat_parts))
-            and (not usage_parts or any(p in row.fields[9].lower() for p in usage_parts))
-            and (not value_parts or any(p in row.fields[10].lower() for p in value_parts))
+            if (not search_parts or any(p in row.values["name"].lower() for p in search_parts))
+            and (not cat_parts or any(p in row.values["category"].lower() for p in cat_parts))
+            and (not usage_parts or any(p in row.values["usage"].lower() for p in usage_parts))
+            and (not value_parts or any(p in row.values["value"].lower() for p in value_parts))
         ]
 
     def _render_page(self) -> None:
@@ -900,26 +860,21 @@ class FileDisplay:
         end = min(start + PAGE_SIZE, total)
         count = end - start
 
-        flag_offset = _NUM_BASE_COLS
         self._syncing = True
         for i in range(count):
             actual_idx = self._filtered[start + i]
             row_data = self._rows[actual_idx]
-            row = row_data.fields
             self._pool_rows[i].bgcolor = ft.Colors.PRIMARY_CONTAINER if actual_idx in self._selected_row_indices else None
-            for j in range(self._num_cols):
+            for j, fd in enumerate(self._field_defs):
                 field = self._pool_fields[i][j]
-                if flag_offset <= j < flag_offset + len(self._flag_names):
-                    flag_name = self._flag_names[j - flag_offset]
-                    val = row_data.flags.get(flag_name, "0") == "1"
+                if fd.is_flag():
+                    val = row_data.flags.get(fd.key, "0") == "1"
                     if field.value != val:
                         field.value = val
-                elif j < flag_offset:
-                    if field.value != row[j]:
-                        field.value = row[j]
                 else:
-                    if field.value != row[_NUM_BASE_COLS]:
-                        field.value = row[_NUM_BASE_COLS]
+                    in_val = row_data.values.get(fd.key, "")
+                    if field.value != in_val:
+                        field.value = in_val
         self._syncing = False
 
         if self._prev_count != count:
@@ -982,20 +937,19 @@ class FileDisplay:
             return
         try:
             for row_data in self._rows:
-                row = row_data.fields
                 elem = row_data.elem
-                elem.set("name", row[0])
-                _set_elem_text(elem, "nominal", row[1])
-                _set_elem_text(elem, "lifetime", row[2])
-                _set_elem_text(elem, "restock", row[3])
-                _set_elem_text(elem, "min", row[4])
-                _set_elem_text(elem, "quantmin", row[5])
-                _set_elem_text(elem, "quantmax", row[6])
-                _set_elem_text(elem, "cost", row[7])
+                elem.set("name", row_data.values.get("name", ""))
+                _set_elem_text(elem, "nominal", row_data.values.get("nominal", ""))
+                _set_elem_text(elem, "lifetime", row_data.values.get("lifetime", ""))
+                _set_elem_text(elem, "restock", row_data.values.get("restock", ""))
+                _set_elem_text(elem, "min", row_data.values.get("min", ""))
+                _set_elem_text(elem, "quantmin", row_data.values.get("quantmin", ""))
+                _set_elem_text(elem, "quantmax", row_data.values.get("quantmax", ""))
+                _set_elem_text(elem, "cost", row_data.values.get("cost", ""))
                 self._update_flags(elem, row_data.flags)
-                self._update_single_named(elem, "category", row[_NUM_BASE_COLS])
-                self._update_multi_named(elem, "usage", row[9])
-                self._update_multi_named(elem, "value", row[10])
+                self._update_single_named(elem, "category", row_data.values.get("category", ""))
+                self._update_multi_named(elem, "usage", row_data.values.get("usage", ""))
+                self._update_multi_named(elem, "value", row_data.values.get("value", ""))
             ET.indent(tree, space="\t")
             tree.write(self._path, encoding="UTF-8", xml_declaration=True)
             self._save_status.value = "Saved"
@@ -1039,8 +993,8 @@ class FileDisplay:
         self._path = None
         self._rows = []
         self._filtered = []
+        self._field_defs = []
         self._flag_names = []
-        self._num_cols = _NUM_BASE_COLS + 1
         self._header_row.controls = []
         self._body_column.controls = []
         self._col_widths = []
