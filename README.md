@@ -14,7 +14,8 @@ Editor for DayZ `cfgeconomycore.xml` type files. Built with Python and [Flet](ht
 - **Edit type files** in a table UI with inline editing (nominal, lifetime, restock, min, quantmin, quantmax, cost, flags, category, usage, value)
 - **Create new type files** — auto-registers in the CE block
 - **Delete type files** — removes from config and disk
-- **Pagination & search** for large type lists
+- **Batch update** — edit multiple types in one file at once
+- **Pagination & search** for large type lists (supports `|` for OR queries, e.g. `AK101|AK74`)
 - **Cross-platform** — native desktop builds for Windows and Linux
 
 ## Возможности
@@ -23,22 +24,33 @@ Editor for DayZ `cfgeconomycore.xml` type files. Built with Python and [Flet](ht
 - **Редактирование типов** в таблице с inline-редактированием (nominal, lifetime, restock, min, quantmin, quantmax, cost, flags, category, usage, value)
 - **Создание новых файлов** — авторегистрация в CE блоке
 - **Удаление файлов** — удаление из конфига и с диска
-- **Пагинация и поиск** по большим спискам типов
+- **Пакетное обновление** — редактирование нескольких типов в одном файле сразу
+- **Пагинация и поиск** по большим спискам типов (поддержка `|` для OR запросов, например `AK101|AK74`)
 - **Кроссплатформенность** — нативные сборки для Windows и Linux
 
 ## Use Cases / Сценарии использования
 
-### Vanilla `types.xml`
+### Vanilla `cfgeconomycore.xml` (без CE блока)
 
-If your server only has a single `types.xml` in the `db/` folder — just select `cfgeconomycore.xml`. The editor will find the CE block and load its type files.
+Ванильный `cfgeconomycore.xml` не содержит CE блока. Редактор создаст его автоматически.
 
-Если у вас стандартный `types.xml` в папке `db/` — просто выберите `cfgeconomycore.xml`. Редактор найдёт CE блок и загрузит типовые файлы.
+1. Скачайте папку `mpmissions/<map_name>/` с сервера себе на компьютер
+2. Откройте приложение
+3. Выберите `mpmissions/<map_name>/cfgeconomycore.xml`
+4. В выпадающем списке файлов напишите `types.xml` — он будет создан и подключён к CE блоку
 
-### `cfgeconomycore.xml` without CE block
+Директория CE файлов — `mpmissions/<map_name>/db/`.
 
-If the CE block is missing, the editor will create it automatically with `folder="db"`.
+### Vanilla `cfgeconomycore.xml` (no CE block)
 
-Если CE блок отсутствует, редактор создаст его автоматически с `folder="db"`.
+Vanilla `cfgeconomycore.xml` does not contain a CE block. The editor will create it automatically.
+
+1. Download `mpmissions/<map_name>/` from your server
+2. Open the app
+3. Select `mpmissions/<map_name>/cfgeconomycore.xml`
+4. Type `types.xml` in the file dropdown — it will be created and registered in the CE block
+
+The CE files directory is `mpmissions/<map_name>/db/`.
 
 ### Custom type file (`mod_name.xml`)
 
