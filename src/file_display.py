@@ -11,6 +11,7 @@ from models.field_def import FieldDef, FieldType, STATIC_FIELD_DEFS
 from models.row_data import RowData
 from repository.file_cache import FileCache
 from repository.xml_repository import XmlRepository, _elem_text, _set_elem_text, _names_to_str
+from models.undo_manager import UndoManager
 from ui.batch_panel import BatchPanel
 from ui.detail_panel import DetailPanel
 
@@ -67,6 +68,7 @@ class FileDisplay:
         self._page = page
         self.cache = cache or FileCache()
         self.xml_repo = xml_repo or XmlRepository(cache=self.cache)
+        self._undo_mgr = UndoManager()
         self._page.theme = ft.Theme(hover_color=ft.Colors.TRANSPARENT)
         self._page.dark_theme = ft.Theme(hover_color=ft.Colors.TRANSPARENT)
         self._search_task: asyncio.Task | None = None
@@ -107,11 +109,11 @@ class FileDisplay:
         )
         self._undo_btn = ft.IconButton(
             icon=ft.Icons.UNDO,
-            tooltip="Undo is not implemented yet.",
+            on_click=self._on_undo,
         )
         self._redo_btn = ft.IconButton(
             icon=ft.Icons.REDO,
-            tooltip="Redo is not implemented yet.",
+            on_click=self._on_redo,
         )
         self._search_field = ft.TextField(
             label="Search",
@@ -358,16 +360,20 @@ class FileDisplay:
         self._filter_value_field.value = ""
         self._dirty = False
         self._prev_count = 0
+        self._undo_mgr.clear()
 
         try:
             self._rows = self.xml_repo.parse_file(path)
         except Exception as ex:
+            self._undo_mgr.clear()
             self.control.content = ft.Container(
                 content=ft.Text(f"Error parsing file: {ex}", selectable=True),
                 padding=10,
             )
             self.control.visible = True
             return
+
+        self._undo_mgr.record(self._undo_mgr.take_snapshot(self._rows))
 
         self._flag_names = _collect_flag_names(self._rows)
         self._init_dynamic()
@@ -377,6 +383,7 @@ class FileDisplay:
         self._clear_selection()
         self._apply_filter("")
         self._render_page()
+        self._refresh_button_states()
         self.control.visible = True
 
         if self._tip_task is not None and not self._tip_task.done():
@@ -504,6 +511,7 @@ class FileDisplay:
 
     def _sync_detail_panel(self) -> None:
         if self._selected_row_idx is not None and len(self._selected_row_indices) <= 1:
+            self._undo_mgr.record(self._undo_mgr.take_snapshot(self._rows))
             if self._detail_panel._usage_chipset and self._detail_panel._value_chipset:
                 usage = ", ".join(self._detail_panel._usage_chipset.get_values())
                 value = ", ".join(self._detail_panel._value_chipset.get_values())
@@ -543,6 +551,7 @@ class FileDisplay:
             self._batch_save_field(key)
 
     def _batch_save_field(self, field_key: str) -> None:
+        self._undo_mgr.record(self._undo_mgr.take_snapshot(self._rows))
         self._sync_page_back()
         w = self._batch_panel._field_controls.get(field_key)
         if w is None:
@@ -557,6 +566,7 @@ class FileDisplay:
         self.control.update()
 
     def _batch_save_category(self) -> None:
+        self._undo_mgr.record(self._undo_mgr.take_snapshot(self._rows))
         self._sync_page_back()
         w = self._batch_panel._field_controls.get("category")
         if w is None:
@@ -571,6 +581,7 @@ class FileDisplay:
         self.control.update()
 
     def _batch_save_usage(self) -> None:
+        self._undo_mgr.record(self._undo_mgr.take_snapshot(self._rows))
         self._sync_page_back()
         parts = ", ".join(self._batch_panel._usage_chipset.get_values())
         for idx in self._selected_row_indices:
@@ -582,6 +593,7 @@ class FileDisplay:
         self.control.update()
 
     def _batch_save_value(self) -> None:
+        self._undo_mgr.record(self._undo_mgr.take_snapshot(self._rows))
         self._sync_page_back()
         parts = ", ".join(self._batch_panel._value_chipset.get_values())
         for idx in self._selected_row_indices:
@@ -593,6 +605,7 @@ class FileDisplay:
         self.control.update()
 
     def _batch_save_flag(self, flag_name: str) -> None:
+        self._undo_mgr.record(self._undo_mgr.take_snapshot(self._rows))
         self._sync_page_back()
         cb = self._batch_panel._flag_checkboxes.get(flag_name)
         if cb is None:
@@ -632,6 +645,7 @@ class FileDisplay:
     def _sync_page_back(self) -> None:
         if self._path is None or not self._dirty:
             return
+        self._undo_mgr.record(self._undo_mgr.take_snapshot(self._rows))
         start = self._page_idx * PAGE_SIZE
         for i in range(len(self._body_column.controls)):
             row_idx = self._filtered[start + i] if start + i < len(self._filtered) else -1
@@ -777,3 +791,44 @@ class FileDisplay:
         if self._tip_task is not None and not self._tip_task.done():
             self._tip_task.cancel()
         self._tip_task = None
+
+    def _sync_widgets_to_rows(self) -> None:
+        if self._path is None or not self._dirty:
+            return
+        start = self._page_idx * PAGE_SIZE
+        for i in range(len(self._body_column.controls)):
+            row_idx = self._filtered[start + i] if start + i < len(self._filtered) else -1
+            if row_idx < 0:
+                break
+            row_data = self._rows[row_idx]
+            for j, fd in enumerate(self._field_defs):
+                widget = self._pool_fields[i][j]
+                if fd.is_flag():
+                    row_data.flags[fd.key] = "1" if widget.value else "0"
+                else:
+                    row_data.values[fd.key] = widget.value
+        self._dirty = False
+
+    def _on_undo(self, e):
+        self._sync_widgets_to_rows()
+        if self._undo_mgr.undo(self._rows):
+            self._dirty = True
+            self._clear_selection()
+            self._render_page()
+            self._refresh_button_states()
+            self.control.update()
+
+    def _on_redo(self, e):
+        self._sync_widgets_to_rows()
+        if self._undo_mgr.redo(self._rows):
+            self._dirty = True
+            self._clear_selection()
+            self._render_page()
+            self._refresh_button_states()
+            self.control.update()
+
+    def _refresh_button_states(self) -> None:
+        self._undo_btn.disabled = not self._undo_mgr.can_undo
+        self._redo_btn.disabled = not self._undo_mgr.can_redo
+        self._undo_btn.update()
+        self._redo_btn.update()
