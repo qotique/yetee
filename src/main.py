@@ -13,7 +13,7 @@ import flet as ft
 from file_display import FileDisplay
 
 
-VERSION = "0.1.2"
+VERSION = "0.1.3"
 
 TYPES_TEMPLATE = """<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
 <types>
@@ -82,7 +82,16 @@ class App:
             visible=False,
         )
         self.selected_dir_text = ft.Text("No config selected", size=14)
-
+        
+        unsupported_yet = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("WORK IN PROGRESS"),
+            content=ft.Text("This feature is not supported yet."),
+            actions=[
+                ft.TextButton("Dismiss", on_click=lambda e: self.page.pop_dialog()),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
         self.start_container = ft.Container(
             width=500,
             expand=True,
@@ -94,10 +103,20 @@ class App:
                         text_align=ft.TextAlign.CENTER,
                     ),
                     ft.Button(
-                        "Select cfgeconomycore.xml",
+                        "Select local file",
                         icon=ft.Icons.FILE_OPEN,
                         on_click=self._select_config,
                     ),
+                    ft.Button(
+                        "Select remote file [SSH][WIP]",
+                        icon=ft.Icons.WEB,
+                        on_click=lambda _: self.page.show_dialog(unsupported_yet),
+                    ),
+                    ft.Button(
+                        "Select remote file [FTP][WIP]",
+                        icon=ft.Icons.WEB,
+                        on_click=lambda _: self.page.show_dialog(unsupported_yet),
+                    )
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 alignment=ft.MainAxisAlignment.CENTER,
