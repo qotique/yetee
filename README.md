@@ -1,5 +1,7 @@
 # Types Editor
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 Editor for DayZ `cfgeconomycore.xml` type files. Built with Python and [Flet](https://flet.dev/).
 
 ---
@@ -154,4 +156,4 @@ types_editor/
 
 ## License / Лицензия
 
-MIT
+Licensed under the [MIT License](LICENSE).
