@@ -9,6 +9,8 @@ import flet as ft
 
 from models.field_def import FieldDef, FieldType, STATIC_FIELD_DEFS
 from models.row_data import RowData
+from repository.file_cache import FileCache
+from repository.xml_repository import XmlRepository, _elem_text, _set_elem_text, _names_to_str
 
 
 CATEGORIES = ["clothes", "containers", "explosives", "food", "lootdispatch", "tools", "weapons"]
@@ -44,28 +46,6 @@ _TIPS = [
 
 PAGE_SIZE = 50
 
-_cache: dict[str, list[RowData]] = {}
-_cache_trees: dict[str, ET.ElementTree] = {}
-
-
-def _elem_text(parent: ET.Element, tag: str, default: str = "") -> str:
-    elem = parent.find(tag)
-    if elem is not None and elem.text:
-        return elem.text.strip()
-    return default
-
-
-def _set_elem_text(parent: ET.Element, tag: str, value: str) -> None:
-    elem = parent.find(tag)
-    if elem is not None:
-        if value:
-            elem.text = value
-        else:
-            parent.remove(elem)
-    elif value:
-        ET.SubElement(parent, tag).text = value
-
-
 def _collect_flag_names(rows: list[RowData]) -> list[str]:
     seen: set[str] = set()
     for r in rows:
@@ -73,35 +53,11 @@ def _collect_flag_names(rows: list[RowData]) -> list[str]:
     return sorted(seen)
 
 
-def _names_to_str(elems: list[ET.Element]) -> str:
-    names = [e.get("name", "") for e in elems if e.get("name")]
-    return ", ".join(names)
-
-
-def _build_row(type_elem: ET.Element) -> RowData:
-    flags_elem = type_elem.find("flags")
-    values: dict[str, str] = {}
-    for fd in STATIC_FIELD_DEFS:
-        if fd.key == "name":
-            values[fd.key] = type_elem.get("name", "")
-        else:
-            values[fd.key] = _elem_text(type_elem, fd.key)
-
-    cat_elem = type_elem.find("category")
-    values["category"] = cat_elem.get("name", "") if cat_elem is not None else ""
-    values["usage"] = _names_to_str(type_elem.findall("usage"))
-    values["value"] = _names_to_str(type_elem.findall("value"))
-
-    return RowData(
-        values=values,
-        flags={k: v for k, v in flags_elem.attrib.items()} if flags_elem is not None else {},
-        elem=type_elem,
-    )
-
-
 class FileDisplay:
-    def __init__(self, page: ft.Page):
+    def __init__(self, page: ft.Page, xml_repo: XmlRepository | None = None):
         self._page = page
+        self.cache = FileCache()
+        self.xml_repo = xml_repo or XmlRepository(cache=self.cache)
         self._page.theme = ft.Theme(hover_color=ft.Colors.TRANSPARENT)
         self._page.dark_theme = ft.Theme(hover_color=ft.Colors.TRANSPARENT)
         self._search_task: asyncio.Task | None = None
@@ -422,22 +378,15 @@ class FileDisplay:
         self._dirty = False
         self._prev_count = 0
 
-        if path in _cache:
-            self._rows = _cache[path]
-        else:
-            try:
-                tree = ET.parse(path)
-                _cache_trees[path] = tree
-                root = tree.getroot()
-                self._rows = [_build_row(t) for t in root.findall("type")]
-                _cache[path] = self._rows
-            except Exception as ex:
-                self.control.content = ft.Container(
-                    content=ft.Text(f"Error parsing file: {ex}", selectable=True),
-                    padding=10,
-                )
-                self.control.visible = True
-                return
+        try:
+            self._rows = self.xml_repo.parse_file(path)
+        except Exception as ex:
+            self.control.content = ft.Container(
+                content=ft.Text(f"Error parsing file: {ex}", selectable=True),
+                padding=10,
+            )
+            self.control.visible = True
+            return
 
         self._flag_names = _collect_flag_names(self._rows)
         self._init_dynamic()
@@ -932,62 +881,16 @@ class FileDisplay:
         self._sync_page_back()
         if self._path is None:
             return
-        tree = _cache_trees.get(self._path)
-        if tree is None:
-            return
         try:
-            for row_data in self._rows:
-                elem = row_data.elem
-                elem.set("name", row_data.values.get("name", ""))
-                _set_elem_text(elem, "nominal", row_data.values.get("nominal", ""))
-                _set_elem_text(elem, "lifetime", row_data.values.get("lifetime", ""))
-                _set_elem_text(elem, "restock", row_data.values.get("restock", ""))
-                _set_elem_text(elem, "min", row_data.values.get("min", ""))
-                _set_elem_text(elem, "quantmin", row_data.values.get("quantmin", ""))
-                _set_elem_text(elem, "quantmax", row_data.values.get("quantmax", ""))
-                _set_elem_text(elem, "cost", row_data.values.get("cost", ""))
-                self._update_flags(elem, row_data.flags)
-                self._update_single_named(elem, "category", row_data.values.get("category", ""))
-                self._update_multi_named(elem, "usage", row_data.values.get("usage", ""))
-                self._update_multi_named(elem, "value", row_data.values.get("value", ""))
-            ET.indent(tree, space="\t")
-            tree.write(self._path, encoding="UTF-8", xml_declaration=True)
+            self.xml_repo.save(self._path, self._rows)
             self._save_status.value = "Saved"
             self._save_status.color = ft.Colors.GREEN
         except Exception as ex:
             self._save_status.value = f"Save error: {ex}"
             self._save_status.color = ft.Colors.RED
 
-    def _update_flags(self, parent: ET.Element, flags: dict[str, str]) -> None:
-        f = parent.find("flags")
-        if not flags:
-            if f is not None:
-                parent.remove(f)
-            return
-        if f is None:
-            f = ET.SubElement(parent, "flags")
-        f.attrib.clear()
-        f.attrib.update(flags)
-
-    def _update_single_named(self, parent: ET.Element, tag: str, name: str) -> None:
-        elems = parent.findall(tag)
-        existing = elems[0] if elems else None
-        if name.strip():
-            if existing is not None:
-                existing.set("name", name.strip())
-            else:
-                ET.SubElement(parent, tag).set("name", name.strip())
-        else:
-            if existing is not None:
-                parent.remove(existing)
-
-    def _update_multi_named(self, parent: ET.Element, tag: str, s: str) -> None:
-        for elem in parent.findall(tag):
-            parent.remove(elem)
-        for part in s.split(","):
-            part = part.strip()
-            if part:
-                ET.SubElement(parent, tag).set("name", part)
+    def clear_cache(self, path: str) -> None:
+        self.xml_repo.invalidate_cache(path)
 
     def clear(self) -> None:
         self._path = None
