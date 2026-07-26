@@ -11,6 +11,8 @@ from models.field_def import FieldDef, FieldType, STATIC_FIELD_DEFS
 from models.row_data import RowData
 from repository.file_cache import FileCache
 from repository.xml_repository import XmlRepository, _elem_text, _set_elem_text, _names_to_str
+from ui.batch_panel import BatchPanel
+from ui.detail_panel import DetailPanel
 
 
 CATEGORIES = ["clothes", "containers", "explosives", "food", "lootdispatch", "tools", "weapons"]
@@ -79,13 +81,6 @@ class FileDisplay:
         self._drag_start_slot: int | None = None
 
         page.on_keyboard_event = self._on_page_keyboard
-        self._detail_usage_set: set[str] = set()
-        self._detail_value_set: set[str] = set()
-        self._batch_panel: ft.Container | None = None
-        self._batch_fields: dict[str, ft.TextField | ft.Dropdown | ft.Checkbox] = {}
-        self._batch_flag_checkboxes: dict[str, ft.Checkbox] = {}
-        self._batch_usage_set: set[str] = set()
-        self._batch_value_set: set[str] = set()
 
         self._field_defs: list[FieldDef] = []
         self._flag_names: list[str] = []
@@ -148,26 +143,6 @@ class FileDisplay:
         )
         self._col_widths: list[int] = []
 
-        self._detail_header = ft.Text("", size=14, weight=ft.FontWeight.BOLD)
-        self._batch_header = ft.Text("", size=14, weight=ft.FontWeight.BOLD)
-        self._detail_usage_chips = ft.Row(wrap=True, spacing=4, run_spacing=4)
-        self._detail_usage_add = ft.PopupMenuButton(
-            icon=ft.Icons.ADD_CIRCLE_OUTLINED,
-            tooltip="Add Usage",
-            items=[
-                ft.PopupMenuItem(content=ft.Text(u), on_click=lambda e, v=u: self._on_detail_usage_add(v))
-                for u in USAGES
-            ],
-        )
-        self._detail_value_chips = ft.Row(wrap=True, spacing=4, run_spacing=4)
-        self._detail_value_add = ft.PopupMenuButton(
-            icon=ft.Icons.ADD_CIRCLE_OUTLINED,
-            tooltip="Add Value",
-            items=[
-                ft.PopupMenuItem(content=ft.Text(v), on_click=lambda e, v=v: self._on_detail_value_add(v))
-                for v in VALUES_LIST
-            ],
-        )
         self._tips_switcher = ft.AnimatedSwitcher(
             content=ft.Text(_TIPS[0], size=11, italic=True, color=ft.Colors.GREY_500),
             transition=ft.AnimatedSwitcherTransition.FADE,
@@ -182,21 +157,9 @@ class FileDisplay:
             alignment=ft.Alignment.CENTER,
             expand=True,
         )
-        self._detail_content = ft.Column([
-            self._detail_header,
-            ft.Divider(height=8),
-            ft.Text("Usage", size=12, weight=ft.FontWeight.BOLD),
-            self._detail_usage_chips,
-            self._detail_usage_add,
-            ft.Divider(height=8),
-            ft.Text("Value", size=12, weight=ft.FontWeight.BOLD),
-            self._detail_value_chips,
-            self._detail_value_add,
-            ft.Divider(height=8),
-            ft.Container(expand=True),
-            self._tips_switcher,
-        ])
-        self._detail_panel = ft.Container(
+        self._detail_panel = DetailPanel(self._page, self._tips_switcher, on_changed=lambda: self._on_field_change(None))
+        self._batch_panel = BatchPanel(self._page, self._tips_switcher, on_batch_apply=self._on_batch_action)
+        self._detail_container = ft.Container(
             width=400,
             padding=10,
             content=self._detail_placeholder,
@@ -243,7 +206,7 @@ class FileDisplay:
                             border_radius=8,
                             expand=True,
                         ),
-                                self._detail_panel,
+                                self._detail_container,
                             ],
                             expand=True,
                         ),
@@ -390,9 +353,8 @@ class FileDisplay:
 
         self._flag_names = _collect_flag_names(self._rows)
         self._init_dynamic()
-        self._batch_panel = None
-        self._batch_fields.clear()
-        self._batch_flag_checkboxes.clear()
+        self._batch_panel.hide()
+        self._detail_panel.hide()
 
         self._clear_selection()
         self._apply_filter("")
@@ -502,170 +464,69 @@ class FileDisplay:
         self._render_page()
         self.control.update()
 
+    @property
+    def _detail_usage_set(self) -> set[str]:
+        if self._detail_panel._usage_chipset is not None:
+            return self._detail_panel._usage_chipset._values
+        return set()
+
+    @property
+    def _detail_value_set(self) -> set[str]:
+        if self._detail_panel._value_chipset is not None:
+            return self._detail_panel._value_chipset._values
+        return set()
+
+    @property
+    def _batch_fields(self) -> dict:
+        return self._batch_panel._field_controls
+
+    @property
+    def _batch_flag_checkboxes(self) -> dict:
+        return self._batch_panel._flag_checkboxes
+
     def _sync_detail_panel(self) -> None:
         if self._selected_row_idx is not None and len(self._selected_row_indices) <= 1:
-            usage = ", ".join(sorted(self._detail_usage_set))
-            value = ", ".join(sorted(self._detail_value_set))
-            self._rows[self._selected_row_idx].values["usage"] = usage
-            self._rows[self._selected_row_idx].values["value"] = value
-            if usage or value:
-                self._dirty = True
+            if self._detail_panel._usage_chipset and self._detail_panel._value_chipset:
+                usage = ", ".join(self._detail_panel._usage_chipset.get_values())
+                value = ", ".join(self._detail_panel._value_chipset.get_values())
+                self._rows[self._selected_row_idx].values["usage"] = usage
+                self._rows[self._selected_row_idx].values["value"] = value
+                if usage or value:
+                    self._dirty = True
 
     def _update_detail_panel(self) -> None:
         if len(self._selected_row_indices) >= 2:
-            if self._batch_panel is None:
-                self._build_batch_panel()
-            self._batch_header.value = f"Batch edit: {len(self._selected_row_indices)} rows selected"
-            self._detail_panel.content = self._batch_panel
+            self._batch_panel.show(
+                f"Batch edit: {len(self._selected_row_indices)} rows selected",
+                USAGES,
+                VALUES_LIST,
+                self._flag_names,
+            )
+            self._detail_container.content = self._batch_panel.build()
         elif len(self._selected_row_indices) == 1:
-            self._detail_panel.content = self._detail_content
+            self._detail_container.content = self._detail_panel.build()
         else:
-            self._detail_panel.content = self._detail_placeholder
+            self._detail_container.content = self._detail_placeholder
 
     def _load_detail_panel(self) -> None:
-        row = self._rows[self._selected_row_idx].values
-        self._detail_usage_set = {x.strip() for x in row["usage"].split(",") if x.strip()}
-        self._detail_value_set = {x.strip() for x in row["value"].split(",") if x.strip()}
-        self._detail_header.value = f"Selected: {row['name']}"
-        self._refresh_detail_chips()
-        self._detail_panel.content = self._detail_content
+        row = self._rows[self._selected_row_idx]
+        self._detail_panel.show(row, USAGES, VALUES_LIST)
 
-    def _refresh_detail_chips(self) -> None:
-        self._detail_usage_chips.controls = [
-            ft.Chip(label=ft.Text(s), on_delete=lambda _, v=s: self._detail_remove_usage(v))
-            for s in sorted(self._detail_usage_set)
-        ]
-        self._detail_value_chips.controls = [
-            ft.Chip(label=ft.Text(s), on_delete=lambda _, v=s: self._detail_remove_value(v))
-            for s in sorted(self._detail_value_set)
-        ]
-
-    def _on_detail_usage_add(self, v: str) -> None:
-        if v:
-            self._detail_usage_set.add(v)
-            self._refresh_detail_chips()
-            self._on_field_change(None)
-
-    def _detail_remove_usage(self, v: str) -> None:
-        self._detail_usage_set.discard(v)
-        self._refresh_detail_chips()
-        self._on_field_change(None)
-
-    def _on_detail_value_add(self, v: str) -> None:
-        if v:
-            self._detail_value_set.add(v)
-            self._refresh_detail_chips()
-            self._on_field_change(None)
-
-    def _detail_remove_value(self, v: str) -> None:
-        self._detail_value_set.discard(v)
-        self._refresh_detail_chips()
-        self._on_field_change(None)
-
-    def _build_batch_panel(self) -> None:
-        self._batch_fields = {}
-        self._batch_flag_checkboxes = {}
-        self._batch_usage_set = set()
-        self._batch_value_set = set()
-        rows = [self._batch_header, ft.Divider(height=4)]
-
-        for fd in STATIC_FIELD_DEFS:
-            if fd.key == "name":
-                continue
-            tf = ft.TextField(value="", dense=True, text_size=12, hint_text="", expand=True)
-            self._batch_fields[fd.key] = tf
-            rows.append(ft.Row([
-                ft.Text(fd.label, width=70, size=12),
-                tf,
-                ft.IconButton(
-                    icon=ft.Icons.SAVE, icon_size=18, tooltip=f"Set {fd.label}",
-                    on_click=lambda e, k=fd.key: self._batch_save_field(k),
-                ),
-            ], spacing=4, vertical_alignment=ft.CrossAxisAlignment.CENTER))
-
-        cat_dd = ft.Dropdown(
-            value="", dense=True, text_size=12,
-            expand=True,
-            options=[ft.DropdownOption(key="", text="")] + [ft.DropdownOption(key=c) for c in CATEGORIES],
-        )
-        self._batch_fields["category"] = cat_dd
-        rows.append(ft.Row([
-            ft.Text("Category", width=70, size=12),
-            cat_dd,
-            ft.IconButton(
-                icon=ft.Icons.SAVE, icon_size=18, tooltip="Set Category",
-                on_click=lambda e: self._batch_save_category(),
-            ),
-        ], spacing=4, vertical_alignment=ft.CrossAxisAlignment.CENTER))
-
-        rows.append(ft.Divider(height=4))
-
-        self._batch_usage_chips = ft.Row(wrap=True, spacing=4, run_spacing=4)
-        self._batch_usage_add = ft.PopupMenuButton(
-            icon=ft.Icons.ADD_CIRCLE_OUTLINED,
-            tooltip="Add Usage",
-            items=[
-                ft.PopupMenuItem(content=ft.Text(u), on_click=lambda e, v=u: self._on_batch_usage_add(v))
-                for u in USAGES
-            ],
-        )
-        rows.append(ft.Text("Usage", size=12, weight=ft.FontWeight.BOLD))
-        rows.append(self._batch_usage_chips)
-        rows.append(ft.Row([
-            self._batch_usage_add,
-            ft.IconButton(
-                icon=ft.Icons.SAVE, icon_size=18, tooltip="Apply Usage",
-                on_click=lambda e: self._batch_save_usage(),
-            ),
-        ]))
-
-        rows.append(ft.Divider(height=4))
-
-        self._batch_value_chips = ft.Row(wrap=True, spacing=4, run_spacing=4)
-        self._batch_value_add = ft.PopupMenuButton(
-            icon=ft.Icons.ADD_CIRCLE_OUTLINED,
-            tooltip="Add Value",
-            items=[
-                ft.PopupMenuItem(content=ft.Text(v), on_click=lambda e, v=v: self._on_batch_value_add(v))
-                for v in VALUES_LIST
-            ],
-        )
-        rows.append(ft.Text("Value", size=12, weight=ft.FontWeight.BOLD))
-        rows.append(self._batch_value_chips)
-        rows.append(ft.Row([
-            self._batch_value_add,
-            ft.IconButton(
-                icon=ft.Icons.SAVE, icon_size=18, tooltip="Apply Value",
-                on_click=lambda e: self._batch_save_value(),
-            ),
-        ]))
-
-        if self._flag_names:
-            rows.append(ft.Divider(height=4))
-            rows.append(ft.Text("Flags", size=12, weight=ft.FontWeight.BOLD))
-            for fn in self._flag_names:
-                cb = ft.Checkbox(label="", value=False)
-                self._batch_flag_checkboxes[fn] = cb
-                rows.append(ft.Row([
-                    ft.Text(f"  {fn}", width=130, size=12),
-                    cb,
-                    ft.IconButton(
-                        icon=ft.Icons.SAVE, icon_size=18, tooltip=f"Set {fn}",
-                        on_click=lambda e, flag=fn: self._batch_save_flag(flag),
-                    ),
-                ], spacing=4, vertical_alignment=ft.CrossAxisAlignment.CENTER))
-
-        rows.append(ft.Container(expand=True))
-        rows.append(self._tips_switcher)
-
-        self._batch_panel = ft.Container(
-            content=ft.Column(rows, spacing=4, scroll=ft.ScrollMode.AUTO),
-            padding=10,
-        )
+    def _on_batch_action(self, key: str) -> None:
+        if key == "category":
+            self._batch_save_category()
+        elif key == "usage":
+            self._batch_save_usage()
+        elif key == "value":
+            self._batch_save_value()
+        elif key.startswith("flag:"):
+            self._batch_save_flag(key[5:])
+        else:
+            self._batch_save_field(key)
 
     def _batch_save_field(self, field_key: str) -> None:
         self._sync_page_back()
-        w = self._batch_fields.get(field_key)
+        w = self._batch_panel._field_controls.get(field_key)
         if w is None:
             return
         value = w.value or ""
@@ -679,7 +540,7 @@ class FileDisplay:
 
     def _batch_save_category(self) -> None:
         self._sync_page_back()
-        w = self._batch_fields.get("category")
+        w = self._batch_panel._field_controls.get("category")
         if w is None:
             return
         value = w.value or ""
@@ -693,7 +554,7 @@ class FileDisplay:
 
     def _batch_save_usage(self) -> None:
         self._sync_page_back()
-        parts = ", ".join(sorted(self._batch_usage_set))
+        parts = ", ".join(self._batch_panel._usage_chipset.get_values())
         for idx in self._selected_row_indices:
             self._rows[idx].values["usage"] = parts
         self._dirty = True
@@ -704,7 +565,7 @@ class FileDisplay:
 
     def _batch_save_value(self) -> None:
         self._sync_page_back()
-        parts = ", ".join(sorted(self._batch_value_set))
+        parts = ", ".join(self._batch_panel._value_chipset.get_values())
         for idx in self._selected_row_indices:
             self._rows[idx].values["value"] = parts
         self._dirty = True
@@ -713,43 +574,9 @@ class FileDisplay:
         self._save_status.color = ft.Colors.GREEN
         self.control.update()
 
-    def _on_batch_usage_add(self, v: str) -> None:
-        if v:
-            self._batch_usage_set.add(v)
-            self._refresh_batch_usage_chips()
-            self._on_field_change(None)
-
-    def _batch_remove_usage(self, v: str) -> None:
-        self._batch_usage_set.discard(v)
-        self._refresh_batch_usage_chips()
-        self._on_field_change(None)
-
-    def _on_batch_value_add(self, v: str) -> None:
-        if v:
-            self._batch_value_set.add(v)
-            self._refresh_batch_value_chips()
-            self._on_field_change(None)
-
-    def _batch_remove_value(self, v: str) -> None:
-        self._batch_value_set.discard(v)
-        self._refresh_batch_value_chips()
-        self._on_field_change(None)
-
-    def _refresh_batch_usage_chips(self) -> None:
-        self._batch_usage_chips.controls = [
-            ft.Chip(label=ft.Text(s), on_delete=lambda _, v=s: self._batch_remove_usage(v))
-            for s in sorted(self._batch_usage_set)
-        ]
-
-    def _refresh_batch_value_chips(self) -> None:
-        self._batch_value_chips.controls = [
-            ft.Chip(label=ft.Text(s), on_delete=lambda _, v=s: self._batch_remove_value(v))
-            for s in sorted(self._batch_value_set)
-        ]
-
     def _batch_save_flag(self, flag_name: str) -> None:
         self._sync_page_back()
-        cb = self._batch_flag_checkboxes.get(flag_name)
+        cb = self._batch_panel._flag_checkboxes.get(flag_name)
         if cb is None:
             return
         value = "1" if cb.value else "0"
@@ -763,11 +590,26 @@ class FileDisplay:
 
     def _clear_selection(self) -> None:
         self._mouse_down = False
-        self._detail_panel.content = self._detail_placeholder
+        self._detail_panel.hide()
+        self._detail_container.content = self._detail_placeholder
         self._selected_row_idx = None
         self._selected_row_indices.clear()
-        self._detail_usage_set.clear()
-        self._detail_value_set.clear()
+
+    def _on_detail_usage_add(self, v: str) -> None:
+        if self._detail_panel._usage_chipset:
+            self._detail_panel._usage_chipset.add(v)
+
+    def _detail_remove_usage(self, v: str) -> None:
+        if self._detail_panel._usage_chipset:
+            self._detail_panel._usage_chipset.remove(v)
+
+    def _on_detail_value_add(self, v: str) -> None:
+        if self._detail_panel._value_chipset:
+            self._detail_panel._value_chipset.add(v)
+
+    def _detail_remove_value(self, v: str) -> None:
+        if self._detail_panel._value_chipset:
+            self._detail_panel._value_chipset.remove(v)
 
     def _sync_page_back(self) -> None:
         if self._path is None or not self._dirty:
@@ -910,14 +752,9 @@ class FileDisplay:
         self._prev_count = 0
         self._selected_row_idx = None
         self._selected_row_indices.clear()
-        self._detail_usage_set.clear()
-        self._detail_value_set.clear()
-        self._detail_panel.content = self._detail_placeholder
-        self._batch_panel = None
-        self._batch_fields.clear()
-        self._batch_flag_checkboxes.clear()
-        self._batch_usage_set.clear()
-        self._batch_value_set.clear()
+        self._detail_panel.hide()
+        self._detail_container.content = self._detail_placeholder
+        self._batch_panel.hide()
 
         if self._tip_task is not None and not self._tip_task.done():
             self._tip_task.cancel()
