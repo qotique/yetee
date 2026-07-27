@@ -13,7 +13,7 @@ class DetailPanel:
         self,
         page: ft.Page,
         tips_switcher: ft.Control,
-        on_changed: Callable | None = None,
+        on_changed: Callable[[], object] | None = None,
     ):
         self._page = page
         self._tips_switcher = tips_switcher

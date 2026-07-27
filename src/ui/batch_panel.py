@@ -15,7 +15,7 @@ class BatchPanel:
         self,
         page: ft.Page,
         tips_switcher: ft.Control,
-        on_batch_apply: Callable | None = None,
+        on_batch_apply: Callable[[str], object] | None = None,
     ):
         self._page = page
         self._tips_switcher = tips_switcher
@@ -25,7 +25,7 @@ class BatchPanel:
         self._field_controls: dict[str, ft.Control] = {}
         self._flag_checkboxes: dict[str, ft.Checkbox] = {}
         self._header = ft.Text("", size=14, weight=ft.FontWeight.BOLD)
-        self._container = ft.Column(spacing=4)
+        self._container = ft.Column(spacing=4, scroll=ft.ScrollMode.AUTO)
 
     def show(
         self,
@@ -131,5 +131,5 @@ class BatchPanel:
     def build(self) -> ft.Control:
         return self._container
 
-    def get_values(self) -> dict:
+    def get_values(self) -> dict[str, object]:
         return {k: v.value for k, v in self._field_controls.items()}

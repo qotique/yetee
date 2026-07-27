@@ -11,7 +11,7 @@ class ChipSet:
         values: list[str],
         options: list[str],
         label: str = "",
-        on_change: Callable | None = None,
+        on_change: Callable[[], object] | None = None,
     ):
         self._values = set(values)
         self._options = options

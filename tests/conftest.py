@@ -17,7 +17,12 @@ def patch_async(monkeypatch):
     """Replace asyncio.create_task with a no-op mock so sync tests work."""
     mock_task = MagicMock()
     mock_task.done.return_value = False
-    monkeypatch.setattr(asyncio, "create_task", lambda coro, **kw: mock_task)
+
+    def _noop_create_task(coro, **kw):
+        coro.close()
+        return mock_task
+
+    monkeypatch.setattr(asyncio, "create_task", _noop_create_task)
     return mock_task
 
 

@@ -1,16 +1,25 @@
 from __future__ import annotations
 
+import asyncio
+import logging
+from concurrent.futures import ThreadPoolExecutor
+
 from lxml import etree as ET
 
+from exceptions import ParseError, AccessError
 from models.field_def import STATIC_FIELD_DEFS
 from models.row_data import RowData
 from repository.file_cache import FileCache
+
+logger = logging.getLogger(__name__)
+
+_executor = ThreadPoolExecutor(max_workers=2)
 
 
 def _elem_text(parent: ET.Element, tag: str, default: str = "") -> str:
     elem = parent.find(tag)
     if elem is not None and elem.text:
-        return elem.text.strip()
+        return str(elem.text).strip()
     return default
 
 
@@ -37,22 +46,58 @@ class XmlRepository:
     def parse_file(self, path: str) -> list[RowData]:
         cached = self._cache.get_rows(path)
         if cached is not None:
+            logger.debug("Cache hit for %s", path)
             return cached
 
-        tree = ET.parse(path)
+        logger.info("Parsing file: %s", path)
+        try:
+            tree = ET.parse(path)
+        except ET.ParseError as ex:
+            logger.error("Failed to parse XML %s: %s", path, ex)
+            raise ParseError(f"Failed to parse {path}: {ex}") from ex
+        except FileNotFoundError as ex:
+            logger.error("File not found: %s", path)
+            raise AccessError(f"File not found: {path}") from ex
+        except Exception as ex:
+            logger.error("Error reading file %s: %s", path, ex)
+            raise AccessError(f"Cannot read {path}: {ex}") from ex
+
         self._cache.set_tree(path, tree)
         root = tree.getroot()
         rows = [self._build_row(t) for t in root.findall("type")]
         self._cache.set_rows(path, rows)
+        logger.debug("Parsed %d rows from %s", len(rows), path)
         return rows
 
+    async def parse_file_async(self, path: str) -> list[RowData]:
+        cached = self._cache.get_rows(path)
+        if cached is not None:
+            logger.debug("Cache hit for %s", path)
+            return cached
+        logger.info("Parsing file (async): %s", path)
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(_executor, self._parse_file_sync, path)
+
+    def _parse_file_sync(self, path: str) -> list[RowData]:
+        return self.parse_file(path)
+
     def save(self, path: str, rows: list[RowData]) -> None:
+        logger.info("Saving %d rows to %s", len(rows), path)
         tree = self._cache.get_tree(path)
         if tree is None:
-            return
+            logger.warning("No cached tree for %s, re-parsing", path)
+            try:
+                tree = ET.parse(path)
+                self._cache.set_tree(path, tree)
+            except Exception as ex:
+                raise ParseError(f"Cannot re-parse {path}: {ex}") from ex
+
+        if tree is None:
+            raise ParseError(f"No element tree available for {path}")
 
         for row_data in rows:
             elem = row_data.elem
+            assert elem is not None
             elem.set("name", row_data.values.get("name", ""))
             _set_elem_text(elem, "nominal", row_data.values.get("nominal", ""))
             _set_elem_text(elem, "lifetime", row_data.values.get("lifetime", ""))
@@ -66,11 +111,25 @@ class XmlRepository:
             self._update_multi_named(elem, "usage", row_data.values.get("usage", ""))
             self._update_multi_named(elem, "value", row_data.values.get("value", ""))
 
-        ET.indent(tree, space="\t")
-        tree.write(path, encoding="UTF-8", xml_declaration=True)
+        try:
+            ET.indent(tree, space="\t")
+            tree.write(path, encoding="UTF-8", xml_declaration=True)
+            logger.info("Saved %s successfully", path)
+        except Exception as ex:
+            logger.error("Failed to save %s: %s", path, ex)
+            raise AccessError(f"Failed to save {path}: {ex}") from ex
+
+    async def save_async(self, path: str, rows: list[RowData]) -> None:
+        logger.info("Saving (async) %d rows to %s", len(rows), path)
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(_executor, self._save_sync, path, rows)
+
+    def _save_sync(self, path: str, rows: list[RowData]) -> None:
+        self.save(path, rows)
 
     def invalidate_cache(self, path: str) -> None:
         self._cache.invalidate(path)
+        logger.debug("Invalidated cache for %s", path)
 
     def _build_row(self, type_elem: ET.Element) -> RowData:
         flags_elem = type_elem.find("flags")
