@@ -266,7 +266,7 @@ async def test_settings_round_trip(mock_page):
 
 
 def test_app_creates_service_instances(mock_page):
-    from unittest.mock import patch
+    from unittest.mock import patch, MagicMock
     with patch("flet.FilePicker"):
         from main import App
         from services.config_service import ConfigService
@@ -277,15 +277,19 @@ def test_app_creates_service_instances(mock_page):
         settings_service = SettingsService(mock_page)
         update_service = UpdateService(mock_page)
         entertainment_service = EntertainmentService()
-        app = App(mock_page, config_service, settings_service, update_service, entertainment_service)
+        project_service = MagicMock()
+        economy_editor = MagicMock()
+        app = App(mock_page, config_service, settings_service, update_service, entertainment_service, project_service, economy_editor)
         assert hasattr(app, "_config_service")
         assert hasattr(app, "_settings_service")
         assert hasattr(app, "_update_service")
         assert hasattr(app, "_entertainment_service")
+        assert hasattr(app, "_project_service")
+        assert hasattr(app, "_economy_editor")
 
 
 def test_app_delegates_config_service(ce_file, mock_page, tmp_path):
-    from unittest.mock import patch
+    from unittest.mock import patch, MagicMock
     with patch("flet.FilePicker"):
         from main import App
         from services.config_service import ConfigService
@@ -296,7 +300,9 @@ def test_app_delegates_config_service(ce_file, mock_page, tmp_path):
         settings_service = SettingsService(mock_page)
         update_service = UpdateService(mock_page)
         entertainment_service = EntertainmentService()
-        app = App(mock_page, config_service, settings_service, update_service, entertainment_service)
+        project_service = MagicMock()
+        economy_editor = MagicMock()
+        app = App(mock_page, config_service, settings_service, update_service, entertainment_service, project_service, economy_editor)
 
         svc = app._config_service
         result = svc.load_files(str(ce_file))
@@ -305,7 +311,7 @@ def test_app_delegates_config_service(ce_file, mock_page, tmp_path):
 
 
 def test_app_delegates_settings_service(mock_page):
-    from unittest.mock import patch
+    from unittest.mock import patch, MagicMock
     with patch("flet.FilePicker"):
         from main import App
         from services.config_service import ConfigService
@@ -316,5 +322,7 @@ def test_app_delegates_settings_service(mock_page):
         settings_service = SettingsService(mock_page)
         update_service = UpdateService(mock_page)
         entertainment_service = EntertainmentService()
-        app = App(mock_page, config_service, settings_service, update_service, entertainment_service)
+        project_service = MagicMock()
+        economy_editor = MagicMock()
+        app = App(mock_page, config_service, settings_service, update_service, entertainment_service, project_service, economy_editor)
         assert app._settings_service is not None

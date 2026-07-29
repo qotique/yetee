@@ -37,13 +37,18 @@ class SettingsService:
                     result[key] = val
             logger.debug("Settings loaded: %s", result)
             return result
+        except RuntimeError:
+            logger.debug("Failed to load settings (session closed)")
+            return {}
         except Exception as ex:
-            logger.error("Failed to load settings: %s", ex)
+            logger.warning("Failed to load settings: %s", ex)
             return {}
 
     async def save_setting(self, key: str, value: object) -> None:
         logger.debug("Saving setting %s=%s", key, value)
         try:
             await self._page.shared_preferences.set(f"types_editor.{key}", value)
+        except RuntimeError:
+            logger.debug("Failed to save setting %s (session closed)", key)
         except Exception as ex:
-            logger.error("Failed to save setting %s: %s", key, ex)
+            logger.warning("Failed to save setting %s: %s", key, ex)

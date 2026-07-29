@@ -17,6 +17,7 @@ class ChipSet:
         self._options = options
         self._label = label
         self._on_change = on_change
+        self._cat_mode: bool = False
 
         self._chips_row = ft.Row(wrap=True, spacing=4, run_spacing=4)
         self._add_menu = ft.PopupMenuButton(
@@ -54,8 +55,22 @@ class ChipSet:
         ]
         return self._container
 
+    def set_cat_mode(self, enabled: bool) -> None:
+        self._cat_mode = enabled
+        self._add_menu.icon = ft.Icons.PETS if enabled else ft.Icons.ADD_CIRCLE_OUTLINED
+        try:
+            self._add_menu.update()
+        except RuntimeError:
+            pass
+        self.refresh()
+        try:
+            self._chips_row.update()
+        except RuntimeError:
+            pass
+
     def refresh(self) -> None:
+        delete_icon = ft.Icon(ft.Icons.PETS) if self._cat_mode else None
         self._chips_row.controls = [
-            ft.Chip(label=ft.Text(s), on_delete=lambda _, v=s: self.remove(v))
+            ft.Chip(label=ft.Text(s), delete_icon=delete_icon, on_delete=lambda _, v=s: self.remove(v))
             for s in sorted(self._values)
         ]
