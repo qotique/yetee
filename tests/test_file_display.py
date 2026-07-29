@@ -1,10 +1,12 @@
-"""Acceptance tests for FileDisplay — capture current behavior before refactoring."""
+"""Acceptance tests for FileDisplay."""
 
 from __future__ import annotations
 
 from lxml import etree as ET
 
-from file_display import FileDisplay, _elem_text, _collect_flag_names
+from controllers.table_controller import _collect_flag_names
+from file_display import FileDisplay
+from repository.xml_repository import _elem_text
 
 
 # ── Parsing ─────────────────────────────────────────────────────────────

@@ -49,23 +49,23 @@ def mock_page():
 # ── ConfigService: load_files ─────────────────────────────────────────────
 
 
-def test_config_load_files_returns_filenames(ce_file, mock_page):
+def test_config_load_files_returns_filenames(ce_file):
     from services.config_service import ConfigService
 
-    svc = ConfigService(mock_page)
+    svc = ConfigService()
     files = svc.load_files(str(ce_file))
     assert files == ["types.xml", "weapons.xml"]
 
 
-def test_config_load_files_empty_returns_empty_list(ce_empty_file, mock_page):
+def test_config_load_files_empty_returns_empty_list(ce_empty_file):
     from services.config_service import ConfigService
 
-    svc = ConfigService(mock_page)
+    svc = ConfigService()
     files = svc.load_files(str(ce_empty_file))
     assert files == []
 
 
-def test_config_load_files_parses_real_xml(tmp_path, mock_page):
+def test_config_load_files_parses_real_xml(tmp_path):
     xml = """<?xml version="1.0"?>
 <economy>
   <ce folder="types">
@@ -78,7 +78,7 @@ def test_config_load_files_parses_real_xml(tmp_path, mock_page):
     path.write_text(xml)
     from services.config_service import ConfigService
 
-    svc = ConfigService(mock_page)
+    svc = ConfigService()
     files = svc.load_files(str(path))
     assert files == ["a.xml", "b.xml", "c.xml"]
 
@@ -86,26 +86,26 @@ def test_config_load_files_parses_real_xml(tmp_path, mock_page):
 # ── ConfigService: get_ce_folder / get_types_dir ──────────────────────────
 
 
-def test_config_get_ce_folder(ce_file, mock_page):
+def test_config_get_ce_folder(ce_file):
     from services.config_service import ConfigService
 
-    svc = ConfigService(mock_page)
+    svc = ConfigService()
     assert svc.get_ce_folder(str(ce_file)) == "db"
 
 
-def test_config_get_types_dir(ce_file, mock_page):
+def test_config_get_types_dir(ce_file):
     from services.config_service import ConfigService
 
-    svc = ConfigService(mock_page)
+    svc = ConfigService()
     types_dir = svc.get_types_dir(str(ce_file))
     expected = os.path.join(os.path.dirname(str(ce_file)), "db")
     assert types_dir == expected
 
 
-def test_config_get_types_dir_falls_back_to_config_dir(ce_empty_file, mock_page):
+def test_config_get_types_dir_falls_back_to_config_dir(ce_empty_file):
     from services.config_service import ConfigService
 
-    svc = ConfigService(mock_page)
+    svc = ConfigService()
     types_dir = svc.get_types_dir(str(ce_empty_file))
     assert types_dir == os.path.dirname(str(ce_empty_file))
 
@@ -113,13 +113,13 @@ def test_config_get_types_dir_falls_back_to_config_dir(ce_empty_file, mock_page)
 # ── ConfigService: create_type_file ───────────────────────────────────────
 
 
-def test_config_create_type_file_creates_file(ce_file, mock_page, tmp_path):
+def test_config_create_type_file_creates_file(ce_file, tmp_path):
     from services.config_service import ConfigService
 
     db_dir = tmp_path / "db"
     db_dir.mkdir()
 
-    svc = ConfigService(mock_page)
+    svc = ConfigService()
     result = svc.create_type_file(str(ce_file), "new_types.xml")
 
     assert result is not None
@@ -130,13 +130,13 @@ def test_config_create_type_file_creates_file(ce_file, mock_page, tmp_path):
     assert "<types>" in content
 
 
-def test_config_create_type_file_registers_in_ce(ce_file, mock_page, tmp_path):
+def test_config_create_type_file_registers_in_ce(ce_file, tmp_path):
     from services.config_service import ConfigService
 
     db_dir = tmp_path / "db"
     db_dir.mkdir()
 
-    svc = ConfigService(mock_page)
+    svc = ConfigService()
     svc.create_type_file(str(ce_file), "new_types.xml")
 
     tree = ET.parse(str(ce_file))
@@ -147,13 +147,13 @@ def test_config_create_type_file_registers_in_ce(ce_file, mock_page, tmp_path):
     assert "new_types.xml" in names
 
 
-def test_config_create_type_file_appends_xml_ending(ce_file, mock_page, tmp_path):
+def test_config_create_type_file_appends_xml_ending(ce_file, tmp_path):
     from services.config_service import ConfigService
 
     db_dir = tmp_path / "db"
     db_dir.mkdir()
 
-    svc = ConfigService(mock_page)
+    svc = ConfigService()
     result = svc.create_type_file(str(ce_file), "my_types")
 
     assert result is not None
@@ -163,7 +163,7 @@ def test_config_create_type_file_appends_xml_ending(ce_file, mock_page, tmp_path
 # ── ConfigService: delete_type_file ───────────────────────────────────────
 
 
-def test_config_delete_type_file_removes_file(ce_file, mock_page, tmp_path):
+def test_config_delete_type_file_removes_file(ce_file, tmp_path):
     from services.config_service import ConfigService
 
     db_dir = tmp_path / "db"
@@ -171,21 +171,21 @@ def test_config_delete_type_file_removes_file(ce_file, mock_page, tmp_path):
     type_file = db_dir / "types.xml"
     type_file.write_text("<types/>")
 
-    svc = ConfigService(mock_page)
+    svc = ConfigService()
     result = svc.delete_type_file(str(ce_file), "types.xml")
 
     assert result is True
     assert not type_file.exists()
 
 
-def test_config_delete_type_file_unregisters_from_ce(ce_file, mock_page, tmp_path):
+def test_config_delete_type_file_unregisters_from_ce(ce_file, tmp_path):
     from services.config_service import ConfigService
 
     db_dir = tmp_path / "db"
     db_dir.mkdir()
     (db_dir / "types.xml").write_text("<types/>")
 
-    svc = ConfigService(mock_page)
+    svc = ConfigService()
     svc.delete_type_file(str(ce_file), "types.xml")
 
     tree = ET.parse(str(ce_file))
@@ -199,11 +199,11 @@ def test_config_delete_type_file_unregisters_from_ce(ce_file, mock_page, tmp_pat
 # ── ConfigService: add_file_to_ce / remove_file_from_ce ───────────────────
 
 
-def test_config_add_file_to_ce(ce_file, mock_page):
+def test_config_add_file_to_ce(ce_file):
     from services.config_service import ConfigService
 
     tree = ET.parse(str(ce_file))
-    svc = ConfigService(mock_page)
+    svc = ConfigService()
     result = svc.add_file_to_ce(tree, "test.xml")
     assert result is True
 
@@ -214,11 +214,11 @@ def test_config_add_file_to_ce(ce_file, mock_page):
     assert "test.xml" in names
 
 
-def test_config_remove_file_from_ce(ce_file, mock_page):
+def test_config_remove_file_from_ce(ce_file):
     from services.config_service import ConfigService
 
     tree = ET.parse(str(ce_file))
-    svc = ConfigService(mock_page)
+    svc = ConfigService()
     result = svc.remove_file_from_ce(tree, "types.xml")
     assert result is True
 
@@ -270,15 +270,18 @@ def test_app_creates_service_instances(mock_page):
     with patch("flet.FilePicker"):
         from main import App
         from services.config_service import ConfigService
+        from services.entertainment_service import EntertainmentService
         from services.settings_service import SettingsService
         from services.update_service import UpdateService
-        config_service = ConfigService(mock_page)
+        config_service = ConfigService()
         settings_service = SettingsService(mock_page)
         update_service = UpdateService(mock_page)
-        app = App(mock_page, config_service, settings_service, update_service)
+        entertainment_service = EntertainmentService()
+        app = App(mock_page, config_service, settings_service, update_service, entertainment_service)
         assert hasattr(app, "_config_service")
         assert hasattr(app, "_settings_service")
         assert hasattr(app, "_update_service")
+        assert hasattr(app, "_entertainment_service")
 
 
 def test_app_delegates_config_service(ce_file, mock_page, tmp_path):
@@ -286,12 +289,14 @@ def test_app_delegates_config_service(ce_file, mock_page, tmp_path):
     with patch("flet.FilePicker"):
         from main import App
         from services.config_service import ConfigService
+        from services.entertainment_service import EntertainmentService
         from services.settings_service import SettingsService
         from services.update_service import UpdateService
-        config_service = ConfigService(mock_page)
+        config_service = ConfigService()
         settings_service = SettingsService(mock_page)
         update_service = UpdateService(mock_page)
-        app = App(mock_page, config_service, settings_service, update_service)
+        entertainment_service = EntertainmentService()
+        app = App(mock_page, config_service, settings_service, update_service, entertainment_service)
 
         svc = app._config_service
         result = svc.load_files(str(ce_file))
@@ -304,10 +309,12 @@ def test_app_delegates_settings_service(mock_page):
     with patch("flet.FilePicker"):
         from main import App
         from services.config_service import ConfigService
+        from services.entertainment_service import EntertainmentService
         from services.settings_service import SettingsService
         from services.update_service import UpdateService
-        config_service = ConfigService(mock_page)
+        config_service = ConfigService()
         settings_service = SettingsService(mock_page)
         update_service = UpdateService(mock_page)
-        app = App(mock_page, config_service, settings_service, update_service)
+        entertainment_service = EntertainmentService()
+        app = App(mock_page, config_service, settings_service, update_service, entertainment_service)
         assert app._settings_service is not None
