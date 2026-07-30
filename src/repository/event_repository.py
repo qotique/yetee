@@ -10,28 +10,12 @@ from lxml import etree as ET
 from exceptions import ParseError, AccessError
 from models.row_data import RowData
 from repository.file_cache import FileCache
+from repository.xml_utils import elem_text, set_elem_text
 
 logger = logging.getLogger(__name__)
 
 _executor = ThreadPoolExecutor(max_workers=2)
 
-
-def _elem_text(parent: ET.Element, tag: str, default: str = "") -> str:
-    elem = parent.find(tag)
-    if elem is not None and elem.text:
-        return str(elem.text).strip()
-    return default
-
-
-def _set_elem_text(parent: ET.Element, tag: str, value: str) -> None:
-    elem = parent.find(tag)
-    if elem is not None:
-        if value:
-            elem.text = value
-        else:
-            parent.remove(elem)
-    elif value:
-        ET.SubElement(parent, tag).text = value
 
 
 EVENT_FLAG_NAMES = ["deletable", "init_random", "remove_damaged"]
@@ -135,24 +119,24 @@ class EventRepository:
                     elem.set("name", name)
             seen.add(name)
 
-            _set_elem_text(elem, "nominal", row_data.values.get("nominal", ""))
-            _set_elem_text(elem, "min", row_data.values.get("min", ""))
-            _set_elem_text(elem, "max", row_data.values.get("max", ""))
-            _set_elem_text(elem, "lifetime", row_data.values.get("lifetime", ""))
-            _set_elem_text(elem, "restock", row_data.values.get("restock", ""))
-            _set_elem_text(elem, "saferadius", row_data.values.get("saferadius", ""))
-            _set_elem_text(
+            set_elem_text(elem, "nominal", row_data.values.get("nominal", ""))
+            set_elem_text(elem, "min", row_data.values.get("min", ""))
+            set_elem_text(elem, "max", row_data.values.get("max", ""))
+            set_elem_text(elem, "lifetime", row_data.values.get("lifetime", ""))
+            set_elem_text(elem, "restock", row_data.values.get("restock", ""))
+            set_elem_text(elem, "saferadius", row_data.values.get("saferadius", ""))
+            set_elem_text(
                 elem, "distanceradius", row_data.values.get("distanceradius", "")
             )
-            _set_elem_text(
+            set_elem_text(
                 elem, "cleanupradius", row_data.values.get("cleanupradius", "")
             )
-            _set_elem_text(elem, "position", row_data.values.get("position", ""))
-            _set_elem_text(elem, "limit", row_data.values.get("limit", ""))
-            _set_elem_text(elem, "active", row_data.values.get("active", ""))
+            set_elem_text(elem, "position", row_data.values.get("position", ""))
+            set_elem_text(elem, "limit", row_data.values.get("limit", ""))
+            set_elem_text(elem, "active", row_data.values.get("active", ""))
             secondary = row_data.values.get("secondary", "")
             if secondary:
-                _set_elem_text(elem, "secondary", secondary)
+                set_elem_text(elem, "secondary", secondary)
             else:
                 sec_elem = elem.find("secondary")
                 if sec_elem is not None:
@@ -185,18 +169,18 @@ class EventRepository:
     def _build_row(self, event_elem: ET.Element) -> RowData:
         values: dict[str, str] = {
             "name": event_elem.get("name", ""),
-            "nominal": _elem_text(event_elem, "nominal"),
-            "min": _elem_text(event_elem, "min"),
-            "max": _elem_text(event_elem, "max"),
-            "lifetime": _elem_text(event_elem, "lifetime"),
-            "restock": _elem_text(event_elem, "restock"),
-            "saferadius": _elem_text(event_elem, "saferadius"),
-            "distanceradius": _elem_text(event_elem, "distanceradius"),
-            "cleanupradius": _elem_text(event_elem, "cleanupradius"),
-            "position": _elem_text(event_elem, "position"),
-            "limit": _elem_text(event_elem, "limit"),
-            "active": _elem_text(event_elem, "active"),
-            "secondary": _elem_text(event_elem, "secondary"),
+            "nominal": elem_text(event_elem, "nominal"),
+            "min": elem_text(event_elem, "min"),
+            "max": elem_text(event_elem, "max"),
+            "lifetime": elem_text(event_elem, "lifetime"),
+            "restock": elem_text(event_elem, "restock"),
+            "saferadius": elem_text(event_elem, "saferadius"),
+            "distanceradius": elem_text(event_elem, "distanceradius"),
+            "cleanupradius": elem_text(event_elem, "cleanupradius"),
+            "position": elem_text(event_elem, "position"),
+            "limit": elem_text(event_elem, "limit"),
+            "active": elem_text(event_elem, "active"),
+            "secondary": elem_text(event_elem, "secondary"),
         }
 
         flags_elem = event_elem.find("flags")

@@ -6,7 +6,7 @@ from lxml import etree as ET
 
 from controllers.table_controller import _collect_flag_names
 from file_display import FileDisplay
-from repository.xml_repository import _elem_text
+from repository.xml_utils import elem_text
 
 
 # ── Parsing ─────────────────────────────────────────────────────────────
@@ -271,18 +271,18 @@ def test_batch_save_field(small_types_file, mock_page):
 # ── Standalone helpers ──────────────────────────────────────────────────
 
 
-def test_elem_text_missing(small_types_file):
+def testelem_text_missing(small_types_file):
     tree = ET.parse(str(small_types_file))
     root = tree.getroot()
     typ = root.findall("type")[0]
-    assert _elem_text(typ, "nonexistent") == ""
+    assert elem_text(typ, "nonexistent") == ""
 
 
-def test_elem_text_present(small_types_file):
+def testelem_text_present(small_types_file):
     tree = ET.parse(str(small_types_file))
     root = tree.getroot()
     typ = root.findall("type")[0]
-    assert _elem_text(typ, "nominal") == "10"
+    assert elem_text(typ, "nominal") == "10"
 
 
 def test_collect_flag_names(small_types_file, mock_page):
