@@ -6,6 +6,7 @@ import logging
 import random
 import time
 import urllib.request
+from collections.abc import Callable
 
 from lxml import etree as ET
 
@@ -51,8 +52,22 @@ _TIPS = [
     "Click Save to persist all changes to the XML file",
     "Use Prev and Next buttons to navigate between pages of results",
     "Edits are tracked as dirty until you click Save",
+    "Higher Lifetime values increase server memory usage; keep balanced",
+    "Usage values must match the map's zone definitions for proper spawning",
+    "Negative Cost can be used for quest or admin items that never spawn naturally",
+    "Value tiers (e.g., Tier1, Tier2, Tier3) determine rarity across loot zones",
+    "Flags: Cargo = vehicle trunks, Map = ground spawns, Player = starter gear, Hoarder = stashes",
+    "Category helps group items for mod compatibility and editor filters",
+    "Always set QuantMin and QuantMax to avoid over‑spawning in one container",
+    "Restock interval should be shorter for high‑traffic areas to keep loot fresh",
+    "Use the search bar to quickly find items by partial name or type",
+    "Consider testing changes on a separate server before deploying to production",
+    "Copy existing item settings as a template for creating new items",
+    "Different maps (Chernarus, Livonia) may use specific zone names like 'Airfield'",
+    "Nominal is a target – actual count fluctuates based on spawn chances",
+    "Low Cost gives higher spawn priority – reserve it for vital items",
+    "Regularly review loot tables to prevent rare item inflation and performance issues",
 ]
-
 
 class FileDisplay:
     def __init__(
@@ -212,8 +227,6 @@ class FileDisplay:
 
         logger.debug("FileDisplay initialized")
 
-    # ── Properties for backward compat (tests access) ─────────────────
-
     @property
     def _dirty(self) -> bool:
         return self._dirty_state.is_dirty
@@ -281,9 +294,10 @@ class FileDisplay:
             return bp._flag_checkboxes
         return {}
 
-    # ── Load / Save ──────────────────────────────────────────────────
-
     def _load_setup(self, path: str) -> None:
+        if self._search_task is not None and not self._search_task.done():
+            self._search_task.cancel()
+            self._search_task = None
         self._path = path
         self._save_status.value = ""
         self._pagination.reset()
@@ -329,7 +343,7 @@ class FileDisplay:
         self._load_finish()
         logger.info("Loaded file: %s (%d rows)", path, len(self._rows))
 
-    async def load_file_async(self, path: str) -> None:
+    async def load_file_async(self, path: str, cancel_check: Callable[[], bool] | None = None) -> None:
         self._load_setup(path)
         try:
             self._rows = await self.xml_repo.parse_file_async(path)
@@ -342,8 +356,11 @@ class FileDisplay:
             )
             self.control.visible = True
             return
+        if cancel_check is not None and cancel_check():
+            logger.info("CANCEL_CHECK cancelled load of %s", path)
+            return
         self._load_finish()
-        logger.info("Loaded file (async): %s (%d rows)", path, len(self._rows))
+        self.control.update()
 
     def _save(self, e: object) -> None:
         self._sync_detail_panel()
@@ -376,8 +393,6 @@ class FileDisplay:
             logger.error("Save failed for %s: %s", self._path, ex)
         self.control.update()
 
-    # ── Tip cycling ──────────────────────────────────────────────────
-
     async def _cycle_tip(self) -> None:
         idx = 0
         while True:
@@ -392,8 +407,6 @@ class FileDisplay:
                 tip = _TIPS[idx]
             self._tips_switcher.content = ft.Text(tip, size=11, italic=True, color=ft.Colors.GREY_500)
             self._tips_switcher.update()
-
-    # ── Field change ─────────────────────────────────────────────────
 
     def _on_field_change(self, e: object) -> None:
         self._dirty_state.mark_dirty()
@@ -429,8 +442,6 @@ class FileDisplay:
             )
             self._page.show_dialog(dialog)
             self._page.update()
-
-    # ── Add type ─────────────────────────────────────────────────────
 
     def _on_fab_click(self, e: object) -> None:
         if self._path is None:
@@ -496,8 +507,6 @@ class FileDisplay:
         self._render_page()
         self.control.update()
 
-    # ── Keyboard events ──────────────────────────────────────────────
-
     def _on_key_down(self, e: ft.KeyDownEvent) -> None:
         if "shift" in e.key.lower():
             self._shift_pressed = True
@@ -515,8 +524,6 @@ class FileDisplay:
         if not e.shift:
             self._mouse_down = False
 
-    # ── Multi-select ─────────────────────────────────────────────────
-
     def _toggle_multi_select(self, e: object) -> None:
         self._multi_select_mode = not self._multi_select_mode
         self._multi_btn.content = (
@@ -526,8 +533,6 @@ class FileDisplay:
         )
         self._multi_btn.icon_color = ft.Colors.PRIMARY if self._multi_select_mode else ft.Colors.GREY
         self._multi_btn.update()
-
-    # ── Row selection ────────────────────────────────────────────────
 
     def _on_row_click(self, pool_slot: int) -> None:
         start = self._pagination.page_index * PAGE_SIZE
@@ -589,8 +594,6 @@ class FileDisplay:
         self._render_page()
         self.control.update()
 
-    # ── Detail / Batch panel ─────────────────────────────────────────
-
     def _sync_detail_panel(self) -> None:
         if self._selected_row_idx is not None and len(self._selected_row_indices) <= 1:
             self._undo_mgr.record(self._undo_mgr.take_snapshot(self._rows))
@@ -623,8 +626,6 @@ class FileDisplay:
         row = self._rows[self._selected_row_idx]
         self._detail_panel.show(row, USAGES, VALUES_LIST)
 
-    # ── Detail helpers (backward compat for tests) ───────────────────
-
     def _on_detail_usage_add(self, v: str) -> None:
         if hasattr(self._detail_panel, '_usage_chipset') and self._detail_panel._usage_chipset:
             self._detail_panel._usage_chipset.add(v)
@@ -640,8 +641,6 @@ class FileDisplay:
     def _detail_remove_value(self, v: str) -> None:
         if hasattr(self._detail_panel, '_value_chipset') and self._detail_panel._value_chipset:
             self._detail_panel._value_chipset.remove(v)
-
-    # ── Batch actions ────────────────────────────────────────────────
 
     def _on_batch_action(self, key: str) -> None:
         if key == "category":
@@ -733,8 +732,6 @@ class FileDisplay:
         self._selected_row_idx = None
         self._selected_row_indices.clear()
 
-    # ── Pagination ───────────────────────────────────────────────────
-
     def _prev_page(self, e: object) -> None:
         self._sync_detail_panel()
         self._sync_page_back()
@@ -750,8 +747,6 @@ class FileDisplay:
         self._pagination.next_page(len(self._filtered))
         self._render_page()
         self.control.update()
-
-    # ── Search / Filter ──────────────────────────────────────────────
 
     def _apply_filter(self, query: str) -> None:
         self._search.set_search(query)
@@ -788,8 +783,6 @@ class FileDisplay:
             return
         self._on_search(None)
 
-    # ── Render ───────────────────────────────────────────────────────
-
     def _render_page(self) -> None:
         total = len(self._filtered)
         total_pages = self._pagination.total_pages(total)
@@ -815,8 +808,6 @@ class FileDisplay:
             return
         self._table_ctrl.sync_back(self._rows, self._filtered, self._pagination.page_index)
         self._dirty_state.mark_clean()
-
-    # ── Undo / Redo ──────────────────────────────────────────────────
 
     def _get_root(self) -> ET.Element | None:
         tree = self.cache.get_tree(self._path)
@@ -848,8 +839,6 @@ class FileDisplay:
         self._undo_btn.update()
         self._redo_btn.update()
 
-    # ── Entertainment features ────────────────────────────────────────
-
     def _update_funny_visibility(self) -> None:
         if not self._entertainment_service:
             return
@@ -869,13 +858,30 @@ class FileDisplay:
         self._redo_btn.icon = ft.Icons.PETS if is_cat else ft.Icons.REDO
         self._lucky_btn.icon = ft.Icons.CASINO if not is_cat else ft.Icons.PETS
         self._stats_btn.icon = ft.Icons.BAR_CHART if not is_cat else ft.Icons.PETS
+        self._search_field.icon = ft.Icons.PETS if is_cat else ft.Icons.SEARCH
+        self._filter_category_field.icon = ft.Icons.PETS if is_cat else ft.Icons.CATEGORY
+        self._filter_usage_field.icon = ft.Icons.PETS if is_cat else ft.Icons.MAPS_HOME_WORK
+        self._filter_value_field.icon = ft.Icons.PETS if is_cat else ft.Icons.EDIT_LOCATION
         self._save_btn.update()
         self._multi_btn.update()
         self._undo_btn.update()
         self._redo_btn.update()
         self._lucky_btn.update()
         self._stats_btn.update()
+        self._search_field.update()
+        self._filter_category_field.update()
+        self._filter_usage_field.update()
+        self._filter_value_field.update()
         self._update_fab_icon()
+        self._update_chipset_cat_icons(is_cat)
+
+    def _update_chipset_cat_icons(self, is_cat: bool) -> None:
+        dp = self._detail_panel
+        if isinstance(dp, DetailPanel):
+            dp.set_cat_mode(is_cat)
+        bp = self._batch_panel
+        if isinstance(bp, BatchPanel):
+            bp.set_cat_mode(is_cat)
 
     def _update_fab_icon(self) -> None:
         if self._entertainment_service and self._entertainment_service.cat_mode:
@@ -986,8 +992,6 @@ class FileDisplay:
         self._page.show_dialog(dialog)
         self._page.update()
 
-    # ── Stats ──────────────────────────────────────────────────────────
-
     def _on_stats_click(self, e: object) -> None:
         if not self._entertainment_service:
             return
@@ -1002,8 +1006,6 @@ class FileDisplay:
         )
         self._page.show_dialog(dialog)
         self._page.update()
-
-    # ── "I'm Feeling Lucky" ────────────────────────────────────────────
 
     def _on_lucky_click(self, e: object) -> None:
         dialog = ft.AlertDialog(
@@ -1055,8 +1057,6 @@ class FileDisplay:
         self._page.show_dialog(success_dialog)
         self._page.update()
 
-    # ── Achievements ───────────────────────────────────────────────────
-
     async def _show_achievement_fireworks(self, threshold: int, name: str) -> None:
         chars = ["*", "✦", "✧", "★", "☆"]
         content_text = ft.Text("", size=14, text_align=ft.TextAlign.CENTER, font_family="monospace")
@@ -1082,7 +1082,15 @@ class FileDisplay:
             content_text.update()
             await asyncio.sleep(0.15)
 
-    # ── Clear / Cache management ─────────────────────────────────────
+    def save_file(self) -> None:
+        self._sync_detail_panel()
+        self._sync_page_back()
+        if self._path is not None:
+            try:
+                self.xml_repo.save(self._path, self._rows)
+                self._dirty_state.mark_clean()
+            except Exception as ex:
+                logger.error("Auto-save failed for %s: %s", self._path, ex)
 
     def clear_cache(self, path: str) -> None:
         self.xml_repo.invalidate_cache(path)

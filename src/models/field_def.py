@@ -5,13 +5,11 @@ from enum import Enum, auto
 
 import flet as ft
 
-
 class FieldType(Enum):
     TEXT = auto()
     FLAG = auto()
     SINGLE_NAMED = auto()
     MULTI_NAMED = auto()
-
 
 @dataclass
 class FieldDef:
@@ -34,7 +32,6 @@ class FieldDef:
     def is_multi_named(self) -> bool:
         return self.type == FieldType.MULTI_NAMED
 
-
 STATIC_FIELD_DEFS: list[FieldDef] = [
     FieldDef("name", "Name", FieldType.TEXT, width=200),
     FieldDef("nominal", "Nominal", FieldType.TEXT, width=88, align=ft.TextAlign.RIGHT),
@@ -46,4 +43,4 @@ STATIC_FIELD_DEFS: list[FieldDef] = [
     FieldDef("cost", "Cost", FieldType.TEXT, width=56, align=ft.TextAlign.RIGHT),
 ]
 
-NUM_BASE_COLS = len(STATIC_FIELD_DEFS)  # 8
+NUM_BASE_COLS = len(STATIC_FIELD_DEFS)

@@ -21,6 +21,7 @@ class DetailPanel:
         self._selected_row: RowData | None = None
         self._usage_chipset: ChipSet | None = None
         self._value_chipset: ChipSet | None = None
+        self._cat_mode: bool = False
         self._header = ft.Text("", size=14, weight=ft.FontWeight.BOLD)
         self._container = ft.Column()
 
@@ -30,8 +31,18 @@ class DetailPanel:
         value_values = [x.strip() for x in row.values.get("value", "").split(",") if x.strip()]
         self._usage_chipset = ChipSet(usage_values, usage_options, on_change=self._on_changed)
         self._value_chipset = ChipSet(value_values, value_options, on_change=self._on_changed)
+        if self._cat_mode:
+            self._usage_chipset.set_cat_mode(True)
+            self._value_chipset.set_cat_mode(True)
         self._header.value = f"Selected: {row.values['name']}"
         self.refresh()
+
+    def set_cat_mode(self, enabled: bool) -> None:
+        self._cat_mode = enabled
+        if self._usage_chipset is not None:
+            self._usage_chipset.set_cat_mode(enabled)
+        if self._value_chipset is not None:
+            self._value_chipset.set_cat_mode(enabled)
 
     def hide(self) -> None:
         self._selected_row = None

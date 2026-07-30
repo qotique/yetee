@@ -1,5 +1,3 @@
-"""Types Editor - select cfgeconomycore.xml and edit type files."""
-
 from __future__ import annotations
 
 import logging
@@ -9,16 +7,19 @@ import flet as ft
 
 from di import create_app_services
 from exceptions import YeteeError, ParseError, AccessError
-from file_display import FileDisplay
 from logging_setup import setup_logging
+from models.project import Project
 from services.config_service import ConfigService
+from services.economy_service import EconomyService
 from services.entertainment_service import EntertainmentService
+from services.project_service import ProjectService
 from services.settings_service import SettingsService, THEMES, LANGUAGES
 from services.update_service import UpdateService
+from ui.economy_editor import EconomyEditor
 
 logger = logging.getLogger(__name__)
 
-VERSION = "0.2.2"
+VERSION = "0.3.0"
 
 
 class App:
@@ -29,63 +30,73 @@ class App:
         settings_service: SettingsService,
         update_service: UpdateService,
         entertainment_service: EntertainmentService,
+        project_service: ProjectService,
+        economy_editor: EconomyEditor,
     ) -> None:
         self.page = page
-        self.config_path: str | None = None
-        self.types_dir: str | None = None
-        self._files: dict[str, str] = {}
-
-        self.selected_theme: str = "SYSTEM"
-        self.selected_language: str = "English"
-        self.check_updates: bool = True
-
         self._config_service = config_service
         self._settings_service = settings_service
         self._update_service = update_service
         self._entertainment_service = entertainment_service
+        self._project_service = project_service
+        self._economy_editor = economy_editor
+
+        self.selected_theme: str = "SYSTEM"
+        self.selected_language: str = "English"
+        self.check_updates: bool = True
 
         page.title = "Yet Another Types Editing Environment | YETEE"
         page.theme_mode = THEMES[self.selected_theme]
         page.on_route_change = self.route_change
         page.on_view_pop = self.view_pop
 
-        self.file_display = FileDisplay(page=self.page, entertainment_service=self._entertainment_service)
         self._build_controls()
-
-        self.file_picker = ft.FilePicker()
-
         self.route_change()
-
+        if self.page.views:
+            v = self.page.views[0]
+            print(f"DIAG: view route={v.route}, controls_count={len(v.controls)}, appbar={'set' if v.appbar else 'none'}", flush=True)
+            for i, c in enumerate(v.controls):
+                print(f"DIAG:   c[{i}] type={type(c).__name__}, id={id(c)}", flush=True)
+            print(f"DIAG: content_stack id={id(self._content_stack)}", flush=True)
+            print(f"DIAG: content_stack in controls={any(c is self._content_stack for c in v.controls)}", flush=True)
+        self.page.update()
         self.page.run_task(self._load_settings)
 
     def _build_controls(self) -> None:
-        self.file_dropdown = ft.Dropdown(
-            label="File",
-            hint_text="Select a file",
+        self._project_dropdown = ft.Dropdown(
+            label="Project",
+            hint_text="Select project",
             options=[],
-            visible=False,
-            expand=True,
-            on_select=self._on_file_change,
+            width=220,
+            dense=True,
+            on_select=self._on_project_switch,
         )
-        self.add_btn = ft.Button(
-            content=ft.Icon(ft.Icons.ADD),
-            style=ft.ButtonStyle(shape=ft.CircleBorder(), padding=10),
-            on_click=self._add_file,
+        self._delete_project_btn = ft.IconButton(
+            icon=ft.Icons.DELETE,
+            tooltip="Delete current project",
+            visible=False,
+            on_click=self._on_delete_project,
+        )
+        self._new_project_btn = ft.IconButton(
+            icon=ft.Icons.ADD_BOX,
+            tooltip="New Project",
+            on_click=self._show_new_project_dialog,
+        )
+        self._entity_dropdown = ft.Dropdown(
+            label="Entity",
+            hint_text="Select entity",
+            options=[],
+            width=180,
+            dense=True,
+            visible=False,
+            on_select=self._on_entity_switch,
+        )
+        self._save_btn = ft.Button(
+            "Save",
+            icon=ft.Icons.SAVE,
+            on_click=self._on_save,
             visible=False,
         )
-        self.delete_btn = ft.Button(
-            content=ft.Row(
-                controls=[ft.Icon(ft.Icons.DELETE), ft.Text("Delete")],
-                tight=True,
-            ),
-            style=ft.ButtonStyle(
-                bgcolor=ft.Colors.ERROR_CONTAINER,
-                color=ft.Colors.ON_ERROR_CONTAINER,
-            ),
-            on_click=self._on_delete_click,
-            visible=False,
-        )
-        self.selected_dir_text = ft.Text("No config selected", size=14)
 
         unsupported_yet = ft.AlertDialog(
             modal=True,
@@ -96,82 +107,172 @@ class App:
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
+
         self.start_container = ft.Container(
             width=500,
             expand=True,
             content=ft.Column(
                 [
                     ft.Text(
-                        "Select cfgeconomycore.xml to start editing type files",
-                        size=16,
+                        "Yet Another Types Editing Environment",
+                        size=20,
+                        weight=ft.FontWeight.BOLD,
                         text_align=ft.TextAlign.CENTER,
                     ),
-                    ft.Button(
-                        "Select local file",
-                        icon=ft.Icons.FILE_OPEN,
-                        on_click=self._select_config,
-                    ),
-                    ft.Button(
-                        "Select remote file [SSH][WIP]",
-                        icon=ft.Icons.WEB,
-                        on_click=lambda _: self.page.show_dialog(unsupported_yet),
-                    ),
-                    ft.Button(
-                        "Select remote file [FTP][WIP]",
-                        icon=ft.Icons.WEB,
-                        on_click=lambda _: self.page.show_dialog(unsupported_yet),
-                    )
-                ],
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                alignment=ft.MainAxisAlignment.CENTER,
-                expand=True,
-            ),
-        )
-
-        self.empty_container = ft.Container(
-            expand=True,
-            content=ft.Column(
-                [
                     ft.Text(
-                        "No files in config",
-                        size=16,
+                        "Create or open a project to edit DayZ economy files",
+                        size=14,
                         text_align=ft.TextAlign.CENTER,
+                        color=ft.Colors.GREY_500,
+                    ),
+                    ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
+                    ft.Button(
+                        "New Project",
+                        icon=ft.Icons.ADD_BOX,
+                        on_click=self._show_new_project_dialog,
                     ),
                     ft.Button(
-                        content=ft.Icon(ft.Icons.ADD),
-                        style=ft.ButtonStyle(shape=ft.CircleBorder(), padding=20),
-                        on_click=self._add_file,
+                        "Open Project",
+                        icon=ft.Icons.FILE_OPEN,
+                        on_click=self._show_open_project_dialog,
+                    ),
+                    ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
+                    ft.Text("Quick start:", size=12, italic=True, color=ft.Colors.GREY_500),
+                    ft.Button(
+                        "Select cfgeconomycore.xml directly",
+                        icon=ft.Icons.FILE_OPEN,
+                        on_click=self._select_config_direct,
                     ),
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 alignment=ft.MainAxisAlignment.CENTER,
                 expand=True,
             ),
-            visible=False,
-        )
-
-        self.editor_container = ft.Column(
-            [
-                ft.Row([self.selected_dir_text]),
-                ft.Row(
-                    controls=[self.file_dropdown, self.add_btn, self.delete_btn],
-                    alignment=ft.MainAxisAlignment.START,
-                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                ),
-                self.file_display.control,
-            ],
-            expand=True,
-            visible=False,
         )
 
         self.content_column = ft.Column(
             controls=[
                 self.start_container,
-                self.empty_container,
-                self.editor_container,
+                self._economy_editor.control,
             ],
             alignment=ft.MainAxisAlignment.START,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            expand=True,
+        )
+
+        self._settings_btn = ft.IconButton(
+            icon=ft.Icons.SETTINGS,
+            on_click=self.open_settings,
+        )
+
+        self._theme_dropdown = ft.Dropdown(
+            label="Theme",
+            value=self.selected_theme,
+            options=[ft.DropdownOption(key=t) for t in THEMES],
+            width=200,
+            on_select=self._on_theme_change,
+        )
+        self._language_dropdown = ft.Dropdown(
+            label="Language",
+            value=self.selected_language,
+            options=[ft.DropdownOption(key=l) for l in LANGUAGES],
+            width=200,
+            on_select=self._on_language_change,
+        )
+        self._check_updates_switch = ft.Switch(
+            value=self.check_updates,
+            on_change=self._on_check_updates_change,
+        )
+        self._fun_sounds_switch = ft.Switch(
+            value=self._entertainment_service.fun_sounds,
+            on_change=self._on_fun_sounds_change,
+        )
+        self._fun_messages_switch = ft.Switch(
+            value=self._entertainment_service.fun_save_messages,
+            on_change=self._on_fun_messages_change,
+        )
+        self._meme_switch = ft.Switch(
+            value=self._entertainment_service.show_meme_on_save,
+            on_change=self._on_meme_change,
+        )
+        self._cat_mode_switch = ft.Switch(
+            value=self._entertainment_service.cat_mode,
+            on_change=self._on_cat_mode_change,
+        )
+        self._terminal_mode_switch = ft.Switch(
+            value=self._entertainment_service.terminal_mode,
+            on_change=self._on_terminal_mode_change,
+        )
+        self._funny_enabled_switch = ft.Switch(
+            value=self._entertainment_service.funny_enabled,
+            on_change=self._on_funny_enabled_change,
+        )
+
+        self._settings_overlay = ft.Container(
+            visible=False,
+            expand=True,
+            bgcolor=ft.Colors.SURFACE,
+            content=ft.Column(
+                controls=[
+                    ft.Container(
+                        content=ft.Row(
+                            controls=[
+                                ft.IconButton(
+                                    icon=ft.Icons.ARROW_BACK,
+                                    on_click=self._close_settings,
+                                ),
+                                ft.Text("Settings", size=20, weight=ft.FontWeight.BOLD),
+                            ],
+                            alignment=ft.MainAxisAlignment.START,
+                        ),
+                        bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST,
+                        padding=ft.Padding(left=4, top=8, right=0, bottom=8),
+                    ),
+                    ft.Divider(height=1),
+                    ft.Container(
+                        width=500,
+                        padding=ft.Padding(left=16, top=16, right=16, bottom=16),
+                        content=ft.Column(
+                            controls=[
+                                ft.ListTile(title=ft.Text("Theme"), trailing=self._theme_dropdown, dense=True),
+                                ft.ListTile(title=ft.Text("Language"), trailing=self._language_dropdown, dense=True),
+                                ft.ListTile(title=ft.Text("Check updates on startup"), trailing=self._check_updates_switch, dense=True),
+                                ft.Divider(),
+                                ft.Text("Entertainment", weight=ft.FontWeight.BOLD, size=14),
+                                ft.ListTile(title=ft.Text("Fun sounds (visual effect)"), trailing=self._fun_sounds_switch, dense=True),
+                                ft.ListTile(title=ft.Text("Fun save messages"), trailing=self._fun_messages_switch, dense=True),
+                                ft.ListTile(title=ft.Text("Show meme on save"), trailing=self._meme_switch, dense=True),
+                                ft.ListTile(title=ft.Text("Cat mode"), trailing=self._cat_mode_switch, dense=True),
+                                ft.ListTile(title=ft.Text("Terminal mode"), trailing=self._terminal_mode_switch, dense=True),
+                                ft.Divider(),
+                                ft.Text("Fun Buttons", weight=ft.FontWeight.BOLD, size=14),
+                                ft.ListTile(title=ft.Text("Funny setting (show fun buttons)"), trailing=self._funny_enabled_switch, dense=True),
+                            ],
+                            scroll=ft.ScrollMode.AUTO,
+                        ),
+                    ),
+                ],
+                expand=True,
+            ),
+        )
+
+        self._main_appbar = ft.AppBar(
+            title=ft.Text("Types Editor"),
+            bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST,
+            actions=[
+                self._entity_dropdown,
+                self._project_dropdown,
+                self._new_project_btn,
+                self._delete_project_btn,
+                self._settings_btn,
+            ],
+        )
+
+        self._content_stack = ft.Stack(
+            controls=[
+                self.content_column,
+                self._settings_overlay,
+            ],
             expand=True,
         )
 
@@ -179,170 +280,62 @@ class App:
         return ft.View(
             route="/",
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-            controls=[
-                ft.AppBar(
-                    title=ft.Text("Types Editor"),
-                    bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST,
-                    actions=[
-                        ft.IconButton(
-                            icon=ft.Icons.SETTINGS,
-                            on_click=self.open_settings,
-                        ),
-                    ],
-                ),
-                self.content_column,
-            ],
+            appbar=self._main_appbar,
+            controls=[self._content_stack],
         )
 
-    def build_settings_view(self) -> ft.View:
-        theme_dropdown = ft.Dropdown(
-            label="Theme",
-            value=self.selected_theme,
-            options=[ft.DropdownOption(key=t) for t in THEMES],
-            width=200,
-            on_select=self._on_theme_change,
-        )
+    def _close_settings(self, e: object = None) -> None:
+        self._settings_overlay.visible = False
+        try:
+            self._settings_overlay.update()
+        except RuntimeError:
+            pass
 
-        language_dropdown = ft.Dropdown(
-            label="Language",
-            value=self.selected_language,
-            options=[ft.DropdownOption(key=l) for l in LANGUAGES],
-            width=200,
-            on_select=self._on_language_change,
-        )
-
-        check_updates_switch = ft.Switch(
-            value=self.check_updates,
-            on_change=self._on_check_updates_change,
-        )
-
-        fun_sounds_switch = ft.Switch(
-            value=self._entertainment_service.fun_sounds,
-            on_change=self._on_fun_sounds_change,
-        )
-        fun_messages_switch = ft.Switch(
-            value=self._entertainment_service.fun_save_messages,
-            on_change=self._on_fun_messages_change,
-        )
-        meme_switch = ft.Switch(
-            value=self._entertainment_service.show_meme_on_save,
-            on_change=self._on_meme_change,
-        )
-        cat_mode_switch = ft.Switch(
-            value=self._entertainment_service.cat_mode,
-            on_change=self._on_cat_mode_change,
-        )
-        terminal_mode_switch = ft.Switch(
-            value=self._entertainment_service.terminal_mode,
-            on_change=self._on_terminal_mode_change,
-        )
-        funny_enabled_switch = ft.Switch(
-            value=self._entertainment_service.funny_enabled,
-            on_change=self._on_funny_enabled_change,
-        )
-
-        return ft.View(
-            route="/settings",
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-            controls=[
-                ft.AppBar(
-                    title=ft.Text("Settings"),
-                    bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST,
-                ),
-                ft.Container(
-                    width=500,
-                    content=ft.Column(
-                        [
-                            ft.ListTile(
-                                title=ft.Text("Theme"),
-                                trailing=theme_dropdown,
-                                dense=True,
-                            ),
-                            ft.ListTile(
-                                title=ft.Text("Language"),
-                                trailing=language_dropdown,
-                                dense=True,
-                            ),
-                            ft.ListTile(
-                                title=ft.Text("Check updates on startup"),
-                                trailing=check_updates_switch,
-                                dense=True,
-                            ),
-                            ft.Divider(),
-                            ft.Text("Entertainment", weight=ft.FontWeight.BOLD, size=14),
-                            ft.ListTile(
-                                title=ft.Text("Fun sounds (visual effect)"),
-                                trailing=fun_sounds_switch,
-                                dense=True,
-                            ),
-                            ft.ListTile(
-                                title=ft.Text("Fun save messages"),
-                                trailing=fun_messages_switch,
-                                dense=True,
-                            ),
-                            ft.ListTile(
-                                title=ft.Text("Show meme on save"),
-                                trailing=meme_switch,
-                                dense=True,
-                            ),
-                            ft.ListTile(
-                                title=ft.Text("Cat mode"),
-                                trailing=cat_mode_switch,
-                                dense=True,
-                            ),
-                            ft.ListTile(
-                                title=ft.Text("Terminal mode"),
-                                trailing=terminal_mode_switch,
-                                dense=True,
-                            ),
-                            ft.Divider(),
-                            ft.Text("Fun Buttons", weight=ft.FontWeight.BOLD, size=14),
-                            ft.ListTile(
-                                title=ft.Text("Funny setting (show fun buttons)"),
-                                trailing=funny_enabled_switch,
-                                dense=True,
-                            ),
-                        ],
-                    ),
-                ),
-            ],
-        )
+    def _sync_settings_to_controls(self) -> None:
+        self._theme_dropdown.value = self.selected_theme
+        self._language_dropdown.value = self.selected_language
+        self._check_updates_switch.value = self.check_updates
+        self._fun_sounds_switch.value = self._entertainment_service.fun_sounds
+        self._fun_messages_switch.value = self._entertainment_service.fun_save_messages
+        self._meme_switch.value = self._entertainment_service.show_meme_on_save
+        self._cat_mode_switch.value = self._entertainment_service.cat_mode
+        self._terminal_mode_switch.value = self._entertainment_service.terminal_mode
+        self._funny_enabled_switch.value = self._entertainment_service.funny_enabled
 
     def route_change(self, route: object = None) -> None:
-        self.page.views.clear()
-        self.page.views.append(self.build_main_view())
-        if self.page.route == "/settings":
-            self.page.views.append(self.build_settings_view())
-        self.page.update()
+        if not hasattr(self, "_main_appbar"):
+            return
+        if not self.page.views or not self.page.views[0].controls:
+            self.page.views.clear()
+            self.page.views.append(self.build_main_view())
 
     async def view_pop(self, e: ft.ViewPopEvent) -> None:
-        if e.view is not None:
-            self.page.views.remove(e.view)
-            top_view = self.page.views[-1]
-            await self.page.push_route(top_view.route)
+        if self._settings_overlay.visible:
+            self._close_settings()
 
     async def open_settings(self, e: object) -> None:
-        await self.page.push_route("/settings")
+        if not self._settings_overlay.visible:
+            self._sync_settings_to_controls()
+            self._settings_overlay.visible = True
+            try:
+                self._settings_overlay.update()
+            except RuntimeError:
+                pass
 
     async def _load_settings(self) -> None:
         try:
             settings = await self._settings_service.load_settings()
-
             theme = settings.get("theme")
             lang = settings.get("language")
             updates = settings.get("check_updates")
-
             if theme and theme in THEMES:
                 self.selected_theme = theme
                 self.page.theme_mode = THEMES[theme]
-
             if lang and lang in LANGUAGES:
                 self.selected_language = lang
-
             if updates is not None:
                 assert isinstance(updates, bool)
                 self.check_updates = updates
-
             es = self._entertainment_service
             if "fun_sounds" in settings:
                 es.fun_sounds = bool(settings["fun_sounds"])
@@ -352,6 +345,7 @@ class App:
                 es.show_meme_on_save = bool(settings["show_meme_on_save"])
             if "cat_mode" in settings:
                 es.cat_mode = bool(settings["cat_mode"])
+                self._update_appbar_cat_icons()
             if "terminal_mode" in settings:
                 es.terminal_mode = bool(settings["terminal_mode"])
             if "funny_enabled" in settings:
@@ -359,16 +353,251 @@ class App:
             achievements_raw = settings.get("achievements")
             if isinstance(achievements_raw, str):
                 es.achievements_str = achievements_raw
-
             self.page.update()
-            self.file_display._update_funny_visibility()
-
             if self.check_updates:
                 await self._update_service.check_for_updates(VERSION)
         except YeteeError:
             logger.warning("Failed to load settings", exc_info=True)
         except Exception as ex:
             logger.error("Unexpected error loading settings: %s", ex)
+
+        self._refresh_project_dropdown()
+        last = self._project_service.get_last_project()
+        if last is not None and os.path.exists(last.config_path):
+            self._open_project(last)
+        self.page.update()
+
+    def _refresh_project_dropdown(self) -> None:
+        projects = self._project_service.load_projects()
+        self._project_dropdown.options = [
+            ft.DropdownOption(key=p.name) for p in projects
+        ]
+        if self._economy_editor.project is not None:
+            self._project_dropdown.value = self._economy_editor.project.name
+        elif projects:
+            self._project_dropdown.value = projects[-1].name
+        try:
+            self._project_dropdown.update()
+        except RuntimeError:
+            pass
+
+    def _open_project(self, project: Project) -> None:
+        self._project_service.mark_opened(project)
+        self._economy_editor.control.visible = True
+        self._economy_editor.load_project(project)
+        self.start_container.visible = False
+        self._save_btn.visible = True
+        self._delete_project_btn.visible = True
+        self._refresh_project_dropdown()
+        self._refresh_selectors()
+        self._update_appbar_cat_icons()
+        self.page.update()
+
+    def _show_new_project_dialog(self, e: object = None) -> None:
+        name_field = ft.TextField(label="Project name", hint_text="MyServer", autofocus=True)
+        config_path_field = ft.TextField(
+            label="cfgeconomycore.xml path",
+            hint_text="/path/to/cfgeconomycore.xml",
+            expand=True,
+        )
+
+        async def pick_file(ev: object) -> None:
+            files = await ft.FilePicker().pick_files(
+                dialog_title="Select cfgeconomycore.xml",
+                file_type=ft.FilePickerFileType.CUSTOM,
+                allowed_extensions=["xml"],
+            )
+            if files:
+                config_path_field.value = files[0].path
+                config_path_field.update()
+
+        def create(ev: object) -> None:
+            name = name_field.value
+            config_path = config_path_field.value
+            if not name or not config_path:
+                return
+            if not os.path.exists(config_path):
+                logger.warning("Config file does not exist: %s", config_path)
+                return
+            self.page.pop_dialog()
+            self.page.update()
+            self._create_project(name, config_path)
+
+        def cancel(ev: object) -> None:
+            self.page.pop_dialog()
+            self.page.update()
+
+        browse_btn = ft.IconButton(icon=ft.Icons.FOLDER_OPEN, on_click=pick_file)
+
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("New Project"),
+            content=ft.Column([
+                name_field,
+                ft.Row([config_path_field, browse_btn], spacing=4),
+            ], tight=True, width=450),
+            actions=[
+                ft.TextButton("Cancel", on_click=cancel),
+                ft.TextButton("Create", on_click=create),
+            ],
+        )
+        self.page.show_dialog(dialog)
+        self.page.update()
+
+    def _create_project(self, name: str, config_path: str) -> None:
+        try:
+            svc = EconomyService()
+            types_dir = svc.get_types_dir(config_path) or os.path.dirname(config_path)
+            project = Project(
+                name=name,
+                config_path=config_path,
+                types_dir=types_dir,
+            )
+            self._project_service.add_project(project)
+            self._open_project(project)
+        except (YeteeError, Exception) as ex:
+            logger.error("Failed to create project: %s", ex)
+            dialog = ft.AlertDialog(
+                title=ft.Text("Error"),
+                content=ft.Text(f"Failed to create project: {ex}"),
+                actions=[ft.TextButton("OK", on_click=lambda _: self.page.pop_dialog())],
+            )
+            self.page.show_dialog(dialog)
+            self.page.update()
+
+    def _show_open_project_dialog(self, e: object = None) -> None:
+        projects = self._project_service.load_projects()
+        if not projects:
+            dialog = ft.AlertDialog(
+                title=ft.Text("No Projects"),
+                content=ft.Text("No saved projects found. Create a new project first."),
+                actions=[ft.TextButton("OK", on_click=lambda _: self.page.pop_dialog())],
+            )
+            self.page.show_dialog(dialog)
+            self.page.update()
+            return
+
+        options = [ft.DropdownOption(key=p.name) for p in projects]
+        dropdown = ft.Dropdown(
+            label="Select project",
+            options=options,
+            autofocus=True,
+        )
+
+        def do_open(ev: object) -> None:
+            name = dropdown.value
+            if not name:
+                return
+            project = self._project_service.get_project(name)
+            if project is None:
+                return
+            self.page.pop_dialog()
+            self.page.update()
+            self._open_project(project)
+
+        def do_delete(ev: object) -> None:
+            name = dropdown.value
+            if not name:
+                return
+            self._project_service.remove_project(name)
+            self._refresh_project_dropdown()
+            self.page.pop_dialog()
+            self._show_open_project_dialog()
+
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Open Project"),
+            content=dropdown,
+            actions=[
+                ft.TextButton("Delete", on_click=do_delete),
+                ft.TextButton("Cancel", on_click=lambda _: self.page.pop_dialog()),
+                ft.TextButton("Open", on_click=do_open),
+            ],
+        )
+        self.page.show_dialog(dialog)
+        self.page.update()
+
+    def _on_project_switch(self, e: object) -> None:
+        name = self._project_dropdown.value
+        if not name:
+            return
+        project = self._project_service.get_project(name)
+        if project is not None:
+            self._economy_editor.save_file()
+            self._open_project(project)
+
+    def _on_delete_project(self, e: object) -> None:
+        project = self._economy_editor.project
+        if project is None:
+            return
+
+        def confirm(ev: object) -> None:
+            self.page.pop_dialog()
+            self._project_service.remove_project(project.name)
+            self._economy_editor.unload()
+            self._economy_editor.control.visible = False
+            self._delete_project_btn.visible = False
+            self._save_btn.visible = False
+            self.start_container.visible = True
+            self._refresh_project_dropdown()
+            self._refresh_selectors()
+            self.page.update()
+
+        def cancel(ev: object) -> None:
+            self.page.pop_dialog()
+
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Delete Project"),
+            content=ft.Text(f'Delete project "{project.name}"?\nThis does not delete any files.'),
+            actions=[
+                ft.TextButton("Cancel", on_click=cancel),
+                ft.TextButton("Delete", on_click=confirm),
+            ],
+        )
+        self.page.show_dialog(dialog)
+        self.page.update()
+
+    def _refresh_selectors(self) -> None:
+        entities = self._economy_editor.available_entities
+        if entities:
+            self._entity_dropdown.options = [
+                ft.DropdownOption(key=e) for e in entities
+            ]
+            self._entity_dropdown.value = self._economy_editor.current_entity
+            self._entity_dropdown.visible = len(entities) > 1
+        else:
+            self._entity_dropdown.options = []
+            self._entity_dropdown.visible = False
+        try:
+            self._entity_dropdown.update()
+        except RuntimeError:
+            pass
+
+    def _on_entity_switch(self, e: object) -> None:
+        entity = self._entity_dropdown.value
+        if entity:
+            self._economy_editor.switch_entity(entity)
+            self._refresh_selectors()
+
+    def _on_save(self, e: object) -> None:
+        self._economy_editor.file_display._save(e)
+
+    async def _select_config_direct(self, e: object) -> None:
+        files = await ft.FilePicker().pick_files(
+            dialog_title="Select cfgeconomycore.xml",
+            file_type=ft.FilePickerFileType.CUSTOM,
+            allowed_extensions=["xml"],
+        )
+        if not files:
+            return
+        path = files[0].path
+        if path is None:
+            return
+        name = os.path.basename(os.path.dirname(path))
+        if not name or name == "":
+            name = "MyProject"
+        self._create_project(name, path)
 
     async def _on_theme_change(self, e: ft.ControlEvent) -> None:
         theme = e.control.value
@@ -414,7 +643,7 @@ class App:
         except Exception as ex:
             logger.error("Failed to save fun_sounds setting: %s", ex)
         if self._entertainment_service.fun_sounds and self._entertainment_service.cat_mode:
-            self.file_display._show_meow_popup()
+            self._economy_editor.file_display._show_meow_popup()  # type: ignore[union-attr]
 
     async def _on_fun_messages_change(self, e: ft.ControlEvent) -> None:
         self._entertainment_service.fun_save_messages = e.control.value
@@ -436,7 +665,19 @@ class App:
             await self._settings_service.save_setting("cat_mode", e.control.value)
         except Exception as ex:
             logger.error("Failed to save cat_mode setting: %s", ex)
-        self.file_display._update_cat_icons()
+        self._economy_editor.file_display._update_cat_icons()  # type: ignore[union-attr]
+        self._update_appbar_cat_icons()
+        self.page.update()
+
+    def _update_appbar_cat_icons(self) -> None:
+        is_cat = self._entertainment_service.cat_mode
+        self._new_project_btn.icon = ft.Icons.PETS if is_cat else ft.Icons.ADD_BOX
+        self._delete_project_btn.icon = ft.Icons.PETS if is_cat else ft.Icons.DELETE
+        self._settings_btn.icon = ft.Icons.PETS if is_cat else ft.Icons.SETTINGS
+        self._new_project_btn.update()
+        self._delete_project_btn.update()
+        self._settings_btn.update()
+        self._main_appbar.update()
 
     async def _on_terminal_mode_change(self, e: ft.ControlEvent) -> None:
         self._entertainment_service.terminal_mode = e.control.value
@@ -451,199 +692,29 @@ class App:
             await self._settings_service.save_setting("funny_enabled", e.control.value)
         except Exception as ex:
             logger.error("Failed to save funny_enabled setting: %s", ex)
-        self.file_display._update_funny_visibility()
-
-    def _on_file_change(self, e: object) -> None:
-        name = self.file_dropdown.value
-        if not name or name not in self._files:
-            return
-        self.delete_btn.visible = True
-        self._on_file_click(self._files[name])
-
-    def _on_delete_click(self, e: object) -> None:
-        name = self.file_dropdown.value
-        if not name:
-            return
-        self._delete_file(name)
-
-    def _add_file(self, e: object) -> None:
-        if not self.config_path:
-            return
-        self._show_input_dialog("New file name", "my_types.xml")
-
-    def _show_input_dialog(self, title: str, hint: str) -> None:
-        name_field = ft.TextField(hint_text=hint, autofocus=True)
-
-        def on_ok(ev: object) -> None:
-            name = name_field.value
-            self.page.pop_dialog()
-            self.page.update()
-            if name:
-                self._create_file(name)
-
-        def on_cancel(ev: object) -> None:
-            self.page.pop_dialog()
-            self.page.update()
-
-        name_field.on_submit = on_ok
-
-        dialog = ft.AlertDialog(
-            title=ft.Text(title),
-            content=name_field,
-            actions=[
-                ft.TextButton("Cancel", on_click=lambda _: self.page.pop_dialog()),
-                ft.TextButton("OK", on_click=lambda _: on_ok(None)),
-            ],
-        )
-        self.page.show_dialog(dialog)
-
-    def _create_file(self, name: str) -> None:
-        if not self.config_path:
-            return
-
-        try:
-            result = self._config_service.create_type_file(self.config_path, name)
-            if result is None:
-                self.selected_dir_text.value = f"Error creating file: {name}"
-                self.page.update()
-                return
-            self._load_files()
-        except YeteeError as ex:
-            logger.error("Failed to create file: %s", ex)
-            self.selected_dir_text.value = f"Error creating file: {ex}"
-            self.page.update()
-
-    def _delete_file(self, name: str) -> None:
-        if not self.config_path:
-            return
-
-        def on_delete(ev: object) -> None:
-            if not self.config_path:
-                return
-            try:
-                success = self._config_service.delete_type_file(self.config_path, name)
-                if success:
-                    self.file_display.clear()
-                    self._load_files()
-                else:
-                    self.selected_dir_text.value = f"Error deleting file: {name}"
-                    self.page.update()
-            except YeteeError as ex:
-                logger.error("Failed to delete file: %s", ex)
-                self.selected_dir_text.value = f"Error deleting file: {ex}"
-                self.page.update()
-            self.page.pop_dialog()
-
-        def on_cancel(ev: object) -> None:
-            self.page.pop_dialog()
-
-        dialog = ft.AlertDialog(
-            title=ft.Text("Delete file"),
-            content=ft.Text(f"Delete \"{name}\"?"),
-            actions=[
-                ft.TextButton("Cancel", on_click=on_cancel),
-                ft.TextButton("Delete", on_click=on_delete),
-            ],
-        )
-        self.page.show_dialog(dialog)
-
-    def _on_file_click(self, path: str) -> None:
-        self.page.run_task(self._load_file_async, path)
-
-    async def _load_file_async(self, path: str) -> None:
-        try:
-            await self.file_display.load_file_async(path)
-        except YeteeError as ex:
-            logger.error("Failed to load file: %s", ex)
-            self.selected_dir_text.value = f"Error loading file: {ex}"
-        except Exception as ex:
-            logger.error("Unexpected error loading file: %s", ex)
-            self.selected_dir_text.value = f"Unexpected error: {ex}"
-        self.page.update()
-
-    def on_open_click(self, e: object) -> None:
-        self.page.run_task(self._pick_file)
-
-    async def _pick_file(self) -> None:
-        try:
-            files = await self.file_picker.pick_files(
-                dialog_title="Select cfgeconomycore.xml",
-                file_type=ft.FilePickerFileType.CUSTOM,
-                allowed_extensions=["xml"],
-            )
-            if files:
-                self.config_path = files[0].path
-                self._load_files()
-        except Exception as ex:
-            logger.error("File picker error: %s", ex)
-            self.selected_dir_text.value = f"Error selecting file: {ex}"
-            self.page.update()
-
-    def _load_files(self) -> None:
-        if not self.config_path:
-            return
-
-        self._files.clear()
-        self.selected_dir_text.value = f"Config: {self.config_path}"
-
-        try:
-            filenames = self._config_service.load_files(self.config_path)
-            self.types_dir = self._config_service.get_types_dir(self.config_path)
-            if self.types_dir:
-                for name in filenames:
-                    self._files[name] = os.path.join(self.types_dir, name)
-        except YeteeError as ex:
-            logger.error("Error loading files from config: %s", ex)
-            self.selected_dir_text.value = f"Error parsing config: {ex}"
-            self.page.update()
-            return
-        except Exception as ex:
-            logger.error("Unexpected error: %s", ex)
-            self.selected_dir_text.value = f"Error parsing config: {ex}"
-            self.page.update()
-            return
-
-        self.file_dropdown.options = [
-            ft.DropdownOption(key=name) for name in self._files
-        ]
-        if self._files:
-            first_name = next(iter(self._files))
-            self.file_dropdown.value = first_name
-            self.file_dropdown.visible = True
-            self.add_btn.visible = True
-            self.delete_btn.visible = True
-            self.file_display.clear()
-            self.empty_container.visible = False
-            self.editor_container.visible = True
-            self._on_file_click(self._files[first_name])
-        else:
-            self.file_dropdown.value = None
-            self.file_dropdown.visible = False
-            self.add_btn.visible = False
-            self.delete_btn.visible = False
-            self.file_display.clear()
-            self.editor_container.visible = False
-            self.empty_container.visible = True
-
-        self.start_container.visible = False
-        self.page.update()
-
-    def _select_config(self, e: object) -> None:
-        self.page.run_task(self._pick_file)
+        self._economy_editor.file_display._update_funny_visibility()  # type: ignore[union-attr]
 
 
 def main(page: ft.Page) -> None:
     setup_logging()
     services = create_app_services(page)
+    project_service = ProjectService()
+    economy_editor = EconomyEditor(
+        page=page,
+        config_service=services["config_service"],
+        entertainment_service=services["entertainment_service"],
+    )
     App(
         page=page,
         config_service=services["config_service"],
         settings_service=services["settings_service"],
         update_service=services["update_service"],
         entertainment_service=services["entertainment_service"],
+        project_service=project_service,
+        economy_editor=economy_editor,
     )
     page.update()
 
 
 if __name__ == "__main__":
-    ft.app(target=main)
+    ft.run(main=main)

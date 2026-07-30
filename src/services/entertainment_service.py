@@ -54,6 +54,22 @@ CAT_TIPS = [
     "Every cat deserves a cozy spawn point",
     "Keyboard cats make the best editors",
     "Paws for a moment and check your nominal values",
+    "Cats believe the best Nominal is the one that keeps them entertained",
+    "A cat's curiosity is like testing different Cost values",
+    "Purring means your Restock timer is just right",
+    "Cats love watching loot spawn – it's a game of hunt to them",
+    "If your cat walks across the keyboard, it's probably adjusting QuantMin",
+    "Meow! Remember to check the 'Map' flag for outdoor spawns",
+    "Cats prefer 'Hoarder' items because they like to collect things",
+    "A catnap is a good time to let the economy settle and stabilise",
+    "Cats agree: the 'Food' category should always have high spawn rates",
+    "Staring at the screen? Your cat is calculating the perfect Lifetime",
+    "Cats don't like empty containers – so check your Min values",
+    "Every cat knows that 'Cost = -1' means an invisible mouse",
+    "Purr‑haps you should add more Usage values for variety",
+    "Cats are masters of balance – they know when to tweak Nominal",
+    "Don't forget to save before your cat decides to 'help' you type",
+    "Meow, meow, meow! Meow, meow!",
 ]
 
 CATEGORIES = ["clothes", "containers", "explosives", "food", "lootdispatch", "tools", "weapons"]
