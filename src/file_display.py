@@ -161,7 +161,7 @@ class FileDisplay:
         self._save_btn = ft.Button(
             "Save",
             icon=ft.Icons.SAVE,
-            on_click=self._save,
+            on_click=self.save_current,
         )
         self._undo_btn = ft.IconButton(
             icon=ft.Icons.UNDO,
@@ -277,7 +277,7 @@ class FileDisplay:
             on_click=self._on_fab_click,
         )
 
-        self._button_row = ft.Row(
+        self.button_row = ft.Row(
             [
                 self._save_btn,
                 self._multi_btn,
@@ -512,7 +512,7 @@ class FileDisplay:
         self._load_finish()
         self.control.update()
 
-    def _save(self, e: object) -> None:
+    def save_current(self, e: object) -> None:
         self._sync_detail_panel()
         self._sync_page_back()
         if self._path is None:
@@ -1188,7 +1188,7 @@ class FileDisplay:
         self._undo_btn.update()
         self._redo_btn.update()
 
-    def _update_funny_visibility(self) -> None:
+    def update_funny_visibility(self) -> None:
         if not self._entertainment_service:
             return
         visible = self._entertainment_service.funny_enabled
@@ -1197,7 +1197,13 @@ class FileDisplay:
         self._lucky_btn.update()
         self._stats_btn.update()
 
-    def _update_cat_icons(self) -> None:
+    def _try_update(self, ctrl: ft.Control) -> None:
+        try:
+            ctrl.update()
+        except RuntimeError:
+            pass
+
+    def update_cat_icons(self) -> None:
         if not self._entertainment_service:
             return
         is_cat = self._entertainment_service.cat_mode
@@ -1208,17 +1214,11 @@ class FileDisplay:
         self._lucky_btn.icon = ft.Icons.CASINO if not is_cat else ft.Icons.PETS
         self._stats_btn.icon = ft.Icons.BAR_CHART if not is_cat else ft.Icons.PETS
         self._search_field.icon = ft.Icons.PETS if is_cat else ft.Icons.SEARCH
-        buttons = [
-            self._save_btn,
-            self._multi_btn,
-            self._undo_btn,
-            self._redo_btn,
-            self._lucky_btn,
-            self._stats_btn,
-        ]
-        for button in buttons:
-            button.update()
-        self._search_field.update()
+        for ctrl in (
+            self._save_btn, self._multi_btn, self._undo_btn, self._redo_btn,
+            self._lucky_btn, self._stats_btn, self._search_field,
+        ):
+            self._try_update(ctrl)
         self._rebuild_category_menu()
         self._rebuild_usage_menu()
         self._rebuild_value_menu()
@@ -1238,9 +1238,9 @@ class FileDisplay:
             self._fab.icon = ft.Icons.PETS
         else:
             self._fab.icon = ft.Icons.DELETE if self._shift_pressed else ft.Icons.ADD
-        self._fab.update()
+        self._try_update(self._fab)
 
-    async def _show_meow_popup(self) -> None:
+    async def show_meow_popup(self) -> None:
         meow = ft.Container(
             content=ft.Text(
                 "Meow!",
@@ -1283,7 +1283,7 @@ class FileDisplay:
             self._page.run_task(self._show_meme_dialog)
 
         if self._entertainment_service.cat_mode:
-            self._page.run_task(self._show_meow_popup)
+            self._page.run_task(self.show_meow_popup)
 
     async def _show_terminal_save(self) -> None:
         lines = [

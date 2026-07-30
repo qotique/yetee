@@ -19,7 +19,7 @@ from ui.economy_editor import EconomyEditor
 
 logger = logging.getLogger(__name__)
 
-VERSION = "0.4.0"
+VERSION = "0.4.1"
 
 
 class App:
@@ -742,7 +742,7 @@ class App:
             self._entertainment_service.fun_sounds
             and self._entertainment_service.cat_mode
         ):
-            await self._economy_editor.file_display._show_meow_popup()
+            await self._economy_editor.file_display.show_meow_popup()
 
     async def _on_fun_messages_change(self, e: ft.ControlEvent) -> None:
         self._entertainment_service.fun_save_messages = e.control.value
@@ -755,8 +755,8 @@ class App:
     async def _on_cat_mode_change(self, e: ft.ControlEvent) -> None:
         self._entertainment_service.cat_mode = e.control.value
         await self._save_setting("cat_mode", e.control.value)
-        self._economy_editor.file_display._update_cat_icons()
-        self._economy_editor.event_display._update_cat_icons()
+        self._economy_editor.file_display.update_cat_icons()
+        self._economy_editor.event_display.update_cat_icons()
         self._update_appbar_cat_icons()
         self.page.update()
 
@@ -777,7 +777,7 @@ class App:
     async def _on_funny_enabled_change(self, e: ft.ControlEvent) -> None:
         self._entertainment_service.funny_enabled = e.control.value
         await self._save_setting("funny_enabled", e.control.value)
-        self._economy_editor.file_display._update_funny_visibility()
+        self._economy_editor.file_display.update_funny_visibility()
 
 
 def main(page: ft.Page) -> None:

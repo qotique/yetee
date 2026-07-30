@@ -193,7 +193,7 @@ class EconomyEditor:
         if self._using_event_display:
             self._content_slot.content = self._event_display.control
             self._editor_stack.controls = [
-                self._event_display._button_row,
+                self._event_display.button_row,
                 self._content_slot,
             ]
             self._current_file = None
@@ -207,7 +207,7 @@ class EconomyEditor:
             self._build_tabs(file_labels, show_add)
             self._content_slot.content = self._file_display.control
             self._editor_stack.controls = [
-                self._file_display._button_row,
+                self._file_display.button_row,
                 self._tabs,
                 self._content_slot,
             ]
@@ -244,9 +244,9 @@ class EconomyEditor:
 
     def save_current(self, e: object = None) -> None:
         if self._using_event_display:
-            self._event_display._save(e)
+            self._event_display.save_current(e)
         else:
-            self._file_display._save(e)
+            self._file_display.save_current(e)
 
     @property
     def project(self) -> Project | None:
@@ -445,7 +445,7 @@ class EconomyEditor:
         label = _get_label(filename)
         self._build_tabs(list(type_file_map.keys()), show_add=True)
         self._editor_stack.controls = [
-            self._file_display._button_row,
+            self._file_display.button_row,
             self._tabs,
             self._content_slot,
         ]

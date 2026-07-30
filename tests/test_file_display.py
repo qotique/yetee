@@ -178,7 +178,7 @@ def test_save_updates_xml(small_types_file, mock_page):
     # Modify nominal via widget
     fd._pool_fields[0][1].value = "99"
     fd._on_field_change(None)
-    fd._save(None)
+    fd.save_current(None)
     # Re-read and verify
     tree = ET.parse(str(small_types_file))
     root = tree.getroot()
@@ -191,7 +191,7 @@ def test_save_updates_xml(small_types_file, mock_page):
 def test_save_preserves_unchanged_rows(small_types_file, mock_page):
     fd = FileDisplay(page=mock_page)
     fd.load_file(str(small_types_file))
-    fd._save(None)
+    fd.save_current(None)
     tree = ET.parse(str(small_types_file))
     root = tree.getroot()
     types = root.findall("type")

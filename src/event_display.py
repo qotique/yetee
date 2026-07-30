@@ -180,7 +180,9 @@ class EventDisplay:
         self._page_info = ft.Text("", size=12)
         self._prev_btn = ft.Button("Prev", on_click=self._prev_page)
         self._next_btn = ft.Button("Next", on_click=self._next_page)
-        self._save_btn = ft.Button("Save", icon=ft.Icons.SAVE, on_click=self._save)
+        self._save_btn = ft.Button(
+            "Save", icon=ft.Icons.SAVE, on_click=self.save_current
+        )
         self._undo_btn = ft.IconButton(icon=ft.Icons.UNDO, on_click=self._on_undo)
         self._redo_btn = ft.IconButton(icon=ft.Icons.REDO, on_click=self._on_redo)
 
@@ -206,7 +208,7 @@ class EventDisplay:
             content=self._build_placeholder(),
         )
 
-        self._button_row = ft.Row(
+        self.button_row = ft.Row(
             [
                 self._save_btn,
                 self._undo_btn,
@@ -494,7 +496,7 @@ class EventDisplay:
                     extras.update(k for k in pos.keys() if k not in base)
         self._all_spawn_keys = base + sorted(extras)
 
-    def _save(self, e: object) -> None:
+    def save_current(self, e: object) -> None:
         self._sync_page_back()
         if self._events_path is None:
             return
@@ -615,18 +617,22 @@ class EventDisplay:
             self._fab.icon = ft.Icons.DELETE
         else:
             self._fab.icon = ft.Icons.ADD
-        self._fab.update()
+        try:
+            self._fab.update()
+        except RuntimeError:
+            pass
 
-    def _update_cat_icons(self) -> None:
+    def update_cat_icons(self) -> None:
         is_cat = self._entertainment_service and self._entertainment_service.cat_mode
         self._save_btn.icon = ft.Icons.PETS if is_cat else ft.Icons.SAVE
         self._undo_btn.icon = ft.Icons.PETS if is_cat else ft.Icons.UNDO
         self._redo_btn.icon = ft.Icons.PETS if is_cat else ft.Icons.REDO
         self._search_field.icon = ft.Icons.PETS if is_cat else ft.Icons.SEARCH
-        self._save_btn.update()
-        self._undo_btn.update()
-        self._redo_btn.update()
-        self._search_field.update()
+        for ctrl in (self._save_btn, self._undo_btn, self._redo_btn, self._search_field):
+            try:
+                ctrl.update()
+            except RuntimeError:
+                pass
         self._update_fab_icon()
         if self._selected_row_idx is not None:
             self._update_detail_panel()
