@@ -19,6 +19,7 @@ from repository.event_repository import (
     EVENT_FLAG_NAMES,
 )
 from repository.file_cache import FileCache
+from services.entertainment_service import EntertainmentService
 
 logger = logging.getLogger(__name__)
 
@@ -125,10 +126,12 @@ class EventDisplay:
         page: ft.Page,
         event_repo: EventRepository | None = None,
         cache: FileCache | None = None,
+        entertainment_service: EntertainmentService | None = None,
     ):
         self._page = page
         self._cache = cache or FileCache()
         self._event_repo = event_repo or EventRepository(cache=self._cache)
+        self._entertainment_service = entertainment_service
 
         self._undo_mgr = UndoManager()
         self._table_ctrl = TableController(page)
@@ -605,8 +608,28 @@ class EventDisplay:
             self._update_fab_icon()
 
     def _update_fab_icon(self) -> None:
-        self._fab.icon = ft.Icons.DELETE if self._shift_pressed else ft.Icons.ADD
+        is_cat = self._entertainment_service and self._entertainment_service.cat_mode
+        if is_cat:
+            self._fab.icon = ft.Icons.PETS
+        elif self._shift_pressed:
+            self._fab.icon = ft.Icons.DELETE
+        else:
+            self._fab.icon = ft.Icons.ADD
         self._fab.update()
+
+    def _update_cat_icons(self) -> None:
+        is_cat = self._entertainment_service and self._entertainment_service.cat_mode
+        self._save_btn.icon = ft.Icons.PETS if is_cat else ft.Icons.SAVE
+        self._undo_btn.icon = ft.Icons.PETS if is_cat else ft.Icons.UNDO
+        self._redo_btn.icon = ft.Icons.PETS if is_cat else ft.Icons.REDO
+        self._search_field.icon = ft.Icons.PETS if is_cat else ft.Icons.SEARCH
+        self._save_btn.update()
+        self._undo_btn.update()
+        self._redo_btn.update()
+        self._search_field.update()
+        self._update_fab_icon()
+        if self._selected_row_idx is not None:
+            self._update_detail_panel()
 
     def _on_row_click(self, pool_slot: int) -> None:
         start = self._pagination.page_index * EVENT_PAGE_SIZE
@@ -711,8 +734,9 @@ class EventDisplay:
                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 )
             )
+        is_cat = self._entertainment_service and self._entertainment_service.cat_mode
         add_child_btn = ft.IconButton(
-            icon=ft.Icons.ADD_CIRCLE_OUTLINE,
+            icon=ft.Icons.PETS if is_cat else ft.Icons.ADD_CIRCLE_OUTLINE,
             icon_size=18,
             tooltip="Add child",
             on_click=self._on_add_child,
@@ -784,8 +808,9 @@ class EventDisplay:
                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 )
             )
+        is_cat = self._entertainment_service and self._entertainment_service.cat_mode
         add_spawn_btn = ft.IconButton(
-            icon=ft.Icons.ADD_CIRCLE_OUTLINE,
+            icon=ft.Icons.PETS if is_cat else ft.Icons.ADD_CIRCLE_OUTLINE,
             icon_size=18,
             tooltip="Add spawn position",
             on_click=self._on_add_spawn,
@@ -842,8 +867,9 @@ class EventDisplay:
             text_align=ft.TextAlign.RIGHT,
             on_change=self._on_field_change,
         )
+        is_cat = self._entertainment_service and self._entertainment_service.cat_mode
         delete_btn = ft.IconButton(
-            icon=ft.Icons.DELETE_OUTLINE,
+            icon=ft.Icons.PETS if is_cat else ft.Icons.DELETE_OUTLINE,
             icon_size=16,
             tooltip="Delete child",
             on_click=lambda e, i=idx: self._delete_child(i),
@@ -862,8 +888,9 @@ class EventDisplay:
                 width=self._detail_spawn_widths.get(k, 70),
                 on_change=self._on_field_change,
             )
+        is_cat = self._entertainment_service and self._entertainment_service.cat_mode
         delete_btn = ft.IconButton(
-            icon=ft.Icons.DELETE_OUTLINE,
+            icon=ft.Icons.PETS if is_cat else ft.Icons.DELETE_OUTLINE,
             icon_size=16,
             tooltip="Delete spawn",
             on_click=lambda e, i=idx: self._delete_spawn(i),

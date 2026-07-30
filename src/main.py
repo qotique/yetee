@@ -775,6 +775,7 @@ class App:
         except Exception as ex:
             logger.error("Failed to save cat_mode setting: %s", ex)
         self._economy_editor.file_display._update_cat_icons()
+        self._economy_editor.event_display._update_cat_icons()
         self._update_appbar_cat_icons()
         self.page.update()
 

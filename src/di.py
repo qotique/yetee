@@ -75,10 +75,16 @@ def create_event_display(
     page: ft.Page,
     event_repo: EventRepository | None = None,
     cache: FileCache | None = None,
+    entertainment_service: EntertainmentService | None = None,
 ) -> EventDisplay:
     cache = cache or create_file_cache()
     event_repo = event_repo or create_event_repository(cache)
-    return EventDisplay(page=page, event_repo=event_repo, cache=cache)
+    return EventDisplay(
+        page=page,
+        event_repo=event_repo,
+        cache=cache,
+        entertainment_service=entertainment_service,
+    )
 
 
 def create_file_display(

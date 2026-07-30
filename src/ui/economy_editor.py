@@ -69,6 +69,7 @@ class EconomyEditor:
             page=self._page,
             event_repo=EventRepository(cache=self._cache),
             cache=self._cache,
+            entertainment_service=self._entertainment_service,
         )
 
         self._content_slot = ft.Container(
@@ -254,6 +255,10 @@ class EconomyEditor:
     @property
     def file_display(self) -> FileDisplay:
         return self._file_display
+
+    @property
+    def event_display(self) -> EventDisplay:
+        return self._event_display
 
     @property
     def available_entities(self) -> list[str]:
