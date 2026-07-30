@@ -107,7 +107,9 @@ class XmlRepository:
             _set_elem_text(elem, "quantmax", row_data.values.get("quantmax", ""))
             _set_elem_text(elem, "cost", row_data.values.get("cost", ""))
             self._update_flags(elem, row_data.flags)
-            self._update_single_named(elem, "category", row_data.values.get("category", ""))
+            self._update_single_named(
+                elem, "category", row_data.values.get("category", "")
+            )
             self._update_multi_named(elem, "usage", row_data.values.get("usage", ""))
             self._update_multi_named(elem, "value", row_data.values.get("value", ""))
 
@@ -147,7 +149,9 @@ class XmlRepository:
 
         return RowData(
             values=values,
-            flags={k: v for k, v in flags_elem.attrib.items()} if flags_elem is not None else {},
+            flags={k: v for k, v in flags_elem.attrib.items()}
+            if flags_elem is not None
+            else {},
             elem=type_elem,
         )
 

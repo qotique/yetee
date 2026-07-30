@@ -4,11 +4,13 @@ import logging
 
 import flet as ft
 
+from event_display import EventDisplay
 from file_display import FileDisplay
 from models.project import Project
 from services.config_service import ConfigService
 from services.economy_service import EconomyService
 from services.entertainment_service import EntertainmentService
+from repository.event_repository import EventRepository
 from repository.file_cache import FileCache
 from repository.xml_repository import XmlRepository
 
@@ -23,11 +25,18 @@ ENTITY_LABELS: dict[str, str] = {
 }
 
 TYPES_ENTITY = "Types"
-SINGLE_FILE_ENTITIES: set[str] = {"Events", "Globals", "Spawnable Types", "Random Presets"}
+SINGLE_FILE_ENTITIES: set[str] = {
+    "Events",
+    "Globals",
+    "Spawnable Types",
+    "Random Presets",
+}
 ADD_TAB_LABEL = "+"
+
 
 def _get_entity(filename: str) -> str:
     return ENTITY_LABELS.get(filename, "Types")
+
 
 class EconomyEditor:
     def __init__(
@@ -56,15 +65,30 @@ class EconomyEditor:
             entertainment_service=self._entertainment_service,
         )
 
-        self._content_slot = ft.Container(expand=True, content=self._file_display.control)
+        self._event_display = EventDisplay(
+            page=self._page,
+            event_repo=EventRepository(cache=self._cache),
+            cache=self._cache,
+        )
+
+        self._content_slot = ft.Container(
+            expand=True, content=self._file_display.control
+        )
+
+        self._using_event_display: bool = False
 
         self._load_seq: int = 0
         self._tabs: ft.Tabs | None = None
+        self._events_file_path: str | None = None
+        self._spawns_file_path: str | None = None
 
-        self._empty_title = ft.Text("Open a project to start editing", size=16, italic=True)
+        self._empty_title = ft.Text(
+            "Open a project to start editing", size=16, italic=True
+        )
         self._empty_hint = ft.Text(
             "Use Project > New Project or select from the dropdown",
-            size=13, color=ft.Colors.GREY_500,
+            size=13,
+            color=ft.Colors.GREY_500,
         )
         self._empty_label = ft.Container(
             expand=True,
@@ -93,11 +117,12 @@ class EconomyEditor:
     def load_project(self, project: Project) -> None:
         self._project = project
         svc = EconomyService()
-        config_path = project.config_path
+        economy_dir = project.economy_dir
 
-        type_files = svc.get_type_files(config_path)
-        types_dir = svc.get_types_dir(config_path) or project.types_dir
+        type_files = svc.get_type_files(economy_dir)
+        types_dir = svc.get_types_dir(economy_dir)
         known_files = svc.get_known_files(types_dir) if types_dir else {}
+        economy_dir_files = svc.get_economy_dir_files(economy_dir)
 
         self._entities = {}
         self._current_entity = None
@@ -113,6 +138,9 @@ class EconomyEditor:
                 entity = _get_entity(fname)
                 label = _get_label(fname)
                 self._entities[entity] = {label: fpath}
+
+        self._events_file_path = known_files.get("events.xml")
+        self._spawns_file_path = economy_dir_files.get("cfgeventspawns.xml")
 
         self._editor_stack.visible = True
         self._empty_label.visible = False
@@ -130,11 +158,15 @@ class EconomyEditor:
     def unload(self) -> None:
         self._load_seq += 1
         self._file_display.clear()
+        self._event_display.clear()
         self._project = None
         self._entities = {}
         self._current_entity = None
         self._current_file = None
+        self._events_file_path = None
+        self._spawns_file_path = None
         self._clear_tabs()
+        self._content_slot.content = self._file_display.control
         self._editor_stack.controls = [self._content_slot]
         self._editor_stack.visible = False
         self._empty_title.value = "Open a project to start editing"
@@ -150,22 +182,43 @@ class EconomyEditor:
             return
         self._file_display.save_file()
         self._file_display.clear()
+        self._event_display.clear()
         self._clear_tabs()
         files = self._entities[entity]
         file_labels = list(files.keys())
         self._current_entity = entity
-        show_add = entity == TYPES_ENTITY
-        self._build_tabs(file_labels, show_add)
-        self._editor_stack.controls = [self._tabs, self._content_slot]
-        if file_labels:
-            self._current_file = file_labels[0]
-        else:
+        self._using_event_display = entity == "Events"
+
+        if self._using_event_display:
+            self._content_slot.content = self._event_display.control
+            self._editor_stack.controls = [
+                self._event_display._button_row,
+                self._content_slot,
+            ]
             self._current_file = None
-        try:
-            self.control.update()
-        except RuntimeError:
-            pass
-        self._schedule_load()
+            try:
+                self.control.update()
+            except RuntimeError:
+                pass
+            self._schedule_event_load()
+        else:
+            show_add = entity == TYPES_ENTITY
+            self._build_tabs(file_labels, show_add)
+            self._content_slot.content = self._file_display.control
+            self._editor_stack.controls = [
+                self._file_display._button_row,
+                self._tabs,
+                self._content_slot,
+            ]
+            if file_labels:
+                self._current_file = file_labels[0]
+            else:
+                self._current_file = None
+            try:
+                self.control.update()
+            except RuntimeError:
+                pass
+            self._schedule_load()
 
     def switch_file(self, label: str) -> None:
         if self._current_entity is None or self._current_entity not in self._entities:
@@ -186,6 +239,13 @@ class EconomyEditor:
 
     def save_file(self) -> None:
         self._file_display.save_file()
+        self._event_display.save_file()
+
+    def save_current(self, e: object = None) -> None:
+        if self._using_event_display:
+            self._event_display._save(e)
+        else:
+            self._file_display._save(e)
 
     @property
     def project(self) -> Project | None:
@@ -218,8 +278,8 @@ class EconomyEditor:
         return self._current_entity == TYPES_ENTITY
 
     @property
-    def config_path(self) -> str | None:
-        return self._project.config_path if self._project else None
+    def economy_dir(self) -> str | None:
+        return self._project.economy_dir if self._project else None
 
     def get_file_path(self, label: str) -> str | None:
         for files in self._entities.values():
@@ -236,6 +296,31 @@ class EconomyEditor:
         except RuntimeError:
             pass
 
+    def _schedule_event_load(self) -> None:
+        self._load_seq += 1
+        seq = self._load_seq
+        logger.info("SCHEDULE_EVENT seq=%d", seq)
+        try:
+            self._page.run_task(self._load_events_async, seq)
+        except RuntimeError:
+            pass
+
+    async def _load_events_async(self, seq: int) -> None:
+        if seq != self._load_seq:
+            logger.info("ABORT stale event seq=%d cur_seq=%d", seq, self._load_seq)
+            return
+        if self._events_file_path is None:
+            logger.warning("No events file path")
+            return
+        logger.info("LOADING events seq=%d path=%s", seq, self._events_file_path)
+        try:
+            self._event_display.load_file(
+                self._events_file_path, self._spawns_file_path
+            )
+        except RuntimeError:
+            pass
+        logger.info("DONE loading events seq=%d", seq)
+
     async def _load_current_file_async(self, seq: int) -> None:
         if seq != self._load_seq:
             logger.info("ABORT stale seq=%d cur_seq=%d", seq, self._load_seq)
@@ -248,7 +333,9 @@ class EconomyEditor:
         path = files[self._current_file]
         logger.info("LOADING seq=%d file=%s path=%s", seq, self._current_file, path)
         try:
-            await self._file_display.load_file_async(path, cancel_check=lambda: seq != self._load_seq)
+            await self._file_display.load_file_async(
+                path, cancel_check=lambda: seq != self._load_seq
+            )
         except RuntimeError:
             pass
         logger.info("DONE seq=%d file=%s", seq, self._current_file)
@@ -278,7 +365,7 @@ class EconomyEditor:
         if self._tabs is None:
             return
         try:
-            idx = int(getattr(e, 'data', -1))
+            idx = int(getattr(e, "data", -1))
         except (ValueError, TypeError):
             return
         if idx < 0:
@@ -312,10 +399,14 @@ class EconomyEditor:
         dialog = ft.AlertDialog(
             modal=True,
             title=ft.Text("New Type File"),
-            content=ft.Column([
-                ft.Text("Enter a name for the new type file:"),
-                name_field,
-            ], tight=True, width=400),
+            content=ft.Column(
+                [
+                    ft.Text("Enter a name for the new type file:"),
+                    name_field,
+                ],
+                tight=True,
+                width=400,
+            ),
             actions=[
                 ft.TextButton("Cancel", on_click=cancel),
                 ft.TextButton("Create", on_click=confirm),
@@ -327,17 +418,20 @@ class EconomyEditor:
     def _create_type_file(self, filename: str) -> None:
         if not filename.endswith(".xml"):
             filename += ".xml"
+        if self._project is None:
+            return
+        economy_dir = self._project.economy_dir
         cs = self._config_service or ConfigService()
-        config_path = self._project.config_path
+        config_path = EconomyService().find_config(economy_dir)
         if config_path is None:
+            logger.error("cfgeconomycore.xml not found in %s", economy_dir)
             return
         file_path = cs.create_type_file(config_path, filename)
         if file_path is None:
             logger.error("Failed to create type file %s", filename)
             return
         svc = EconomyService()
-        config_path = self._project.config_path
-        type_files = svc.get_type_files(config_path)
+        type_files = svc.get_type_files(economy_dir)
         type_file_map: dict[str, str] = {}
         for fname, fpath in type_files.items():
             type_file_map[_get_label(fname)] = fpath
@@ -345,10 +439,17 @@ class EconomyEditor:
 
         label = _get_label(filename)
         self._build_tabs(list(type_file_map.keys()), show_add=True)
-        self._editor_stack.controls = [self._tabs, self._content_slot]
+        self._editor_stack.controls = [
+            self._file_display._button_row,
+            self._tabs,
+            self._content_slot,
+        ]
         self.control.update()
         if label in type_file_map:
             self.switch_file(label)
 
+
 def _get_label(filename: str) -> str:
-    return ENTITY_LABELS.get(filename, filename.replace(".xml", "").replace("_", " ").title())
+    return ENTITY_LABELS.get(
+        filename, filename.replace(".xml", "").replace("_", " ").title()
+    )

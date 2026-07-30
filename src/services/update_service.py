@@ -19,7 +19,9 @@ class UpdateService:
     def __init__(self, page: ft.Page) -> None:
         self._page = page
 
-    async def check_for_updates(self, current_version: str, show_up_to_date: bool = False) -> None:
+    async def check_for_updates(
+        self, current_version: str, show_up_to_date: bool = False
+    ) -> None:
         logger.info("Checking for updates (current=%s)", current_version)
         try:
             url = f"{_GITHUB_API}/releases/latest"
@@ -72,12 +74,14 @@ class UpdateService:
             logger.debug("Failed to fetch commit message: %s", ex)
             return None
 
-    async def _show_update_dialog(self, latest_tag: str, release_url: str, release_notes: str) -> None:
+    async def _show_update_dialog(
+        self, latest_tag: str, release_url: str, release_notes: str
+    ) -> None:
         notes_text = (
             release_notes
             if release_notes
             else "No release notes provided with this release.\n"
-                 "See the release page on GitHub for details."
+            "See the release page on GitHub for details."
         )
         alert = ft.AlertDialog(
             title=ft.Text(f"Update Available: {latest_tag}"),

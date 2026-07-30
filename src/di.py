@@ -8,7 +8,9 @@ from controllers.dirty_state_manager import DirtyStateManager
 from controllers.pagination_controller import PaginationController
 from controllers.search_controller import SearchController
 from controllers.table_controller import TableController
+from event_display import EventDisplay
 from file_display import FileDisplay
+from repository.event_repository import EventRepository
 from repository.file_cache import FileCache
 from repository.xml_repository import XmlRepository
 from services.config_service import ConfigService
@@ -63,6 +65,20 @@ def create_search_controller() -> SearchController:
 
 def create_dirty_state_manager() -> DirtyStateManager:
     return DirtyStateManager()
+
+
+def create_event_repository(cache: FileCache | None = None) -> EventRepository:
+    return EventRepository(cache=cache or create_file_cache())
+
+
+def create_event_display(
+    page: ft.Page,
+    event_repo: EventRepository | None = None,
+    cache: FileCache | None = None,
+) -> EventDisplay:
+    cache = cache or create_file_cache()
+    event_repo = event_repo or create_event_repository(cache)
+    return EventDisplay(page=page, event_repo=event_repo, cache=cache)
 
 
 def create_file_display(

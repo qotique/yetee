@@ -19,7 +19,7 @@ from ui.economy_editor import EconomyEditor
 
 logger = logging.getLogger(__name__)
 
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 
 
 class App:
@@ -46,29 +46,25 @@ class App:
         self.check_updates: bool = True
 
         page.title = "Yet Another Types Editing Environment | YETEE"
+        page.window.title_bar_hidden = True
+        page.window.maximized = True
         page.theme_mode = THEMES[self.selected_theme]
         page.on_route_change = self.route_change
         page.on_view_pop = self.view_pop
 
         self._build_controls()
         self.route_change()
-        if self.page.views:
-            v = self.page.views[0]
-            print(f"DIAG: view route={v.route}, controls_count={len(v.controls)}, appbar={'set' if v.appbar else 'none'}", flush=True)
-            for i, c in enumerate(v.controls):
-                print(f"DIAG:   c[{i}] type={type(c).__name__}, id={id(c)}", flush=True)
-            print(f"DIAG: content_stack id={id(self._content_stack)}", flush=True)
-            print(f"DIAG: content_stack in controls={any(c is self._content_stack for c in v.controls)}", flush=True)
         self.page.update()
         self.page.run_task(self._load_settings)
 
     def _build_controls(self) -> None:
         self._project_dropdown = ft.Dropdown(
             label="Project",
-            hint_text="Select project",
             options=[],
-            width=220,
+            text_size=12,
+            width=200,
             dense=True,
+            content_padding=ft.Padding(4, 0, 4, 0),
             on_select=self._on_project_switch,
         )
         self._delete_project_btn = ft.IconButton(
@@ -84,10 +80,11 @@ class App:
         )
         self._entity_dropdown = ft.Dropdown(
             label="Entity",
-            hint_text="Select entity",
+            text_size=12,
             options=[],
-            width=180,
+            width=170,
             dense=True,
+            content_padding=ft.Padding(4, 0, 4, 0),
             visible=False,
             on_select=self._on_entity_switch,
         )
@@ -136,12 +133,20 @@ class App:
                         icon=ft.Icons.FILE_OPEN,
                         on_click=self._show_open_project_dialog,
                     ),
-                    ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
-                    ft.Text("Quick start:", size=12, italic=True, color=ft.Colors.GREY_500),
+                    ft.Divider(
+                        height=10,
+                        color=ft.Colors.TRANSPARENT,
+                    ),
+                    ft.Text(
+                        "Quick start:",
+                        size=12,
+                        italic=True,
+                        color=ft.Colors.GREY_500,
+                    ),
                     ft.Button(
-                        "Select cfgeconomycore.xml directly",
-                        icon=ft.Icons.FILE_OPEN,
-                        on_click=self._select_config_direct,
+                        "Select economy directory",
+                        icon=ft.Icons.FOLDER_OPEN,
+                        on_click=self._select_economy_dir,
                     ),
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -234,19 +239,63 @@ class App:
                         padding=ft.Padding(left=16, top=16, right=16, bottom=16),
                         content=ft.Column(
                             controls=[
-                                ft.ListTile(title=ft.Text("Theme"), trailing=self._theme_dropdown, dense=True),
-                                ft.ListTile(title=ft.Text("Language"), trailing=self._language_dropdown, dense=True),
-                                ft.ListTile(title=ft.Text("Check updates on startup"), trailing=self._check_updates_switch, dense=True),
+                                ft.ListTile(
+                                    title=ft.Text("Theme"),
+                                    trailing=self._theme_dropdown,
+                                    dense=True,
+                                ),
+                                ft.ListTile(
+                                    title=ft.Text("Language"),
+                                    trailing=self._language_dropdown,
+                                    dense=True,
+                                ),
+                                ft.ListTile(
+                                    title=ft.Text("Check updates on startup"),
+                                    trailing=self._check_updates_switch,
+                                    dense=True,
+                                ),
                                 ft.Divider(),
-                                ft.Text("Entertainment", weight=ft.FontWeight.BOLD, size=14),
-                                ft.ListTile(title=ft.Text("Fun sounds (visual effect)"), trailing=self._fun_sounds_switch, dense=True),
-                                ft.ListTile(title=ft.Text("Fun save messages"), trailing=self._fun_messages_switch, dense=True),
-                                ft.ListTile(title=ft.Text("Show meme on save"), trailing=self._meme_switch, dense=True),
-                                ft.ListTile(title=ft.Text("Cat mode"), trailing=self._cat_mode_switch, dense=True),
-                                ft.ListTile(title=ft.Text("Terminal mode"), trailing=self._terminal_mode_switch, dense=True),
+                                ft.Text(
+                                    "Entertainment",
+                                    weight=ft.FontWeight.BOLD,
+                                    size=14,
+                                ),
+                                ft.ListTile(
+                                    title=ft.Text("Fun sounds (visual effect)"),
+                                    trailing=self._fun_sounds_switch,
+                                    dense=True,
+                                ),
+                                ft.ListTile(
+                                    title=ft.Text("Fun save messages"),
+                                    trailing=self._fun_messages_switch,
+                                    dense=True,
+                                ),
+                                ft.ListTile(
+                                    title=ft.Text("Show meme on save"),
+                                    trailing=self._meme_switch,
+                                    dense=True,
+                                ),
+                                ft.ListTile(
+                                    title=ft.Text("Cat mode"),
+                                    trailing=self._cat_mode_switch,
+                                    dense=True,
+                                ),
+                                ft.ListTile(
+                                    title=ft.Text("Terminal mode"),
+                                    trailing=self._terminal_mode_switch,
+                                    dense=True,
+                                ),
                                 ft.Divider(),
-                                ft.Text("Fun Buttons", weight=ft.FontWeight.BOLD, size=14),
-                                ft.ListTile(title=ft.Text("Funny setting (show fun buttons)"), trailing=self._funny_enabled_switch, dense=True),
+                                ft.Text(
+                                    "Fun Buttons",
+                                    weight=ft.FontWeight.BOLD,
+                                    size=14,
+                                ),
+                                ft.ListTile(
+                                    title=ft.Text("Funny setting (show fun buttons)"),
+                                    trailing=self._funny_enabled_switch,
+                                    dense=True,
+                                ),
                             ],
                             scroll=ft.ScrollMode.AUTO,
                         ),
@@ -256,16 +305,29 @@ class App:
             ),
         )
 
-        self._main_appbar = ft.AppBar(
-            title=ft.Text("Types Editor"),
+        self._title_bar = ft.Container(
+            content=ft.WindowDragArea(
+                content=ft.Row(
+                    [
+                        ft.Container(expand=True),
+                        self._entity_dropdown,
+                        self._project_dropdown,
+                        self._new_project_btn,
+                        self._delete_project_btn,
+                        self._settings_btn,
+                        ft.IconButton(
+                            icon=ft.Icons.CLOSE,
+                            on_click=self._close_window,
+                        ),
+                    ],
+                    spacing=2,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+                maximizable=True,
+            ),
             bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST,
-            actions=[
-                self._entity_dropdown,
-                self._project_dropdown,
-                self._new_project_btn,
-                self._delete_project_btn,
-                self._settings_btn,
-            ],
+            height=56,
+            padding=ft.Padding(left=0, top=0, right=4, bottom=0),
         )
 
         self._content_stack = ft.Stack(
@@ -280,9 +342,11 @@ class App:
         return ft.View(
             route="/",
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-            appbar=self._main_appbar,
-            controls=[self._content_stack],
+            controls=[self._title_bar, self._content_stack],
         )
+
+    async def _close_window(self, e: object) -> None:
+        await self.page.window.close()
 
     def _close_settings(self, e: object = None) -> None:
         self._settings_overlay.visible = False
@@ -303,7 +367,7 @@ class App:
         self._funny_enabled_switch.value = self._entertainment_service.funny_enabled
 
     def route_change(self, route: object = None) -> None:
-        if not hasattr(self, "_main_appbar"):
+        if not hasattr(self, "_title_bar"):
             return
         if not self.page.views or not self.page.views[0].controls:
             self.page.views.clear()
@@ -363,7 +427,7 @@ class App:
 
         self._refresh_project_dropdown()
         last = self._project_service.get_last_project()
-        if last is not None and os.path.exists(last.config_path):
+        if last is not None and os.path.isdir(last.economy_dir):
             self._open_project(last)
         self.page.update()
 
@@ -394,48 +458,73 @@ class App:
         self.page.update()
 
     def _show_new_project_dialog(self, e: object = None) -> None:
-        name_field = ft.TextField(label="Project name", hint_text="MyServer", autofocus=True)
-        config_path_field = ft.TextField(
-            label="cfgeconomycore.xml path",
-            hint_text="/path/to/cfgeconomycore.xml",
+        name_field = ft.TextField(
+            label="Project name",
+            hint_text="MyServer",
+            autofocus=True,
+        )
+        economy_dir_field = ft.TextField(
+            label="Economy directory",
+            hint_text="/path/to/mpmissions/<map_name>",
+            expand=True,
+        )
+        profiles_dir_field = ft.TextField(
+            label="Profiles directory (optional)",
+            hint_text="/path/to/profiles",
             expand=True,
         )
 
-        async def pick_file(ev: object) -> None:
-            files = await ft.FilePicker().pick_files(
-                dialog_title="Select cfgeconomycore.xml",
-                file_type=ft.FilePickerFileType.CUSTOM,
-                allowed_extensions=["xml"],
+        async def pick_economy_dir(ev: object) -> None:
+            path = await ft.FilePicker().get_directory_path(
+                dialog_title="Select economy directory (mpmissions/<map_name>)",
             )
-            if files:
-                config_path_field.value = files[0].path
-                config_path_field.update()
+            if path:
+                economy_dir_field.value = path
+                economy_dir_field.update()
+
+        async def pick_profiles_dir(ev: object) -> None:
+            path = await ft.FilePicker().get_directory_path(
+                dialog_title="Select profiles directory",
+            )
+            if path:
+                profiles_dir_field.value = path
+                profiles_dir_field.update()
 
         def create(ev: object) -> None:
             name = name_field.value
-            config_path = config_path_field.value
-            if not name or not config_path:
+            economy_dir = economy_dir_field.value
+            if not name or not economy_dir:
                 return
-            if not os.path.exists(config_path):
-                logger.warning("Config file does not exist: %s", config_path)
+            if not os.path.isdir(economy_dir):
+                logger.warning("Economy directory does not exist: %s", economy_dir)
                 return
             self.page.pop_dialog()
             self.page.update()
-            self._create_project(name, config_path)
+            self._create_project(name, economy_dir, profiles_dir_field.value or "")
 
         def cancel(ev: object) -> None:
             self.page.pop_dialog()
             self.page.update()
 
-        browse_btn = ft.IconButton(icon=ft.Icons.FOLDER_OPEN, on_click=pick_file)
+        browse_economy_btn = ft.IconButton(
+            icon=ft.Icons.FOLDER_OPEN, on_click=pick_economy_dir
+        )
+        browse_profiles_btn = ft.IconButton(
+            icon=ft.Icons.FOLDER_OPEN, on_click=pick_profiles_dir
+        )
 
         dialog = ft.AlertDialog(
             modal=True,
             title=ft.Text("New Project"),
-            content=ft.Column([
-                name_field,
-                ft.Row([config_path_field, browse_btn], spacing=4),
-            ], tight=True, width=450),
+            content=ft.Column(
+                [
+                    name_field,
+                    ft.Row([economy_dir_field, browse_economy_btn], spacing=4),
+                    ft.Row([profiles_dir_field, browse_profiles_btn], spacing=4),
+                ],
+                tight=True,
+                width=500,
+            ),
             actions=[
                 ft.TextButton("Cancel", on_click=cancel),
                 ft.TextButton("Create", on_click=create),
@@ -444,14 +533,17 @@ class App:
         self.page.show_dialog(dialog)
         self.page.update()
 
-    def _create_project(self, name: str, config_path: str) -> None:
+    def _create_project(
+        self, name: str, economy_dir: str, profiles_dir: str = ""
+    ) -> None:
         try:
             svc = EconomyService()
-            types_dir = svc.get_types_dir(config_path) or os.path.dirname(config_path)
+            types_dir = svc.get_types_dir(economy_dir)
             project = Project(
                 name=name,
-                config_path=config_path,
+                economy_dir=economy_dir,
                 types_dir=types_dir,
+                profiles_dir=profiles_dir,
             )
             self._project_service.add_project(project)
             self._open_project(project)
@@ -460,7 +552,12 @@ class App:
             dialog = ft.AlertDialog(
                 title=ft.Text("Error"),
                 content=ft.Text(f"Failed to create project: {ex}"),
-                actions=[ft.TextButton("OK", on_click=lambda _: self.page.pop_dialog())],
+                actions=[
+                    ft.TextButton(
+                        "OK",
+                        on_click=lambda _: self.page.pop_dialog(),
+                    )
+                ],
             )
             self.page.show_dialog(dialog)
             self.page.update()
@@ -471,7 +568,12 @@ class App:
             dialog = ft.AlertDialog(
                 title=ft.Text("No Projects"),
                 content=ft.Text("No saved projects found. Create a new project first."),
-                actions=[ft.TextButton("OK", on_click=lambda _: self.page.pop_dialog())],
+                actions=[
+                    ft.TextButton(
+                        "OK",
+                        on_click=lambda _: self.page.pop_dialog(),
+                    )
+                ],
             )
             self.page.show_dialog(dialog)
             self.page.update()
@@ -549,7 +651,9 @@ class App:
         dialog = ft.AlertDialog(
             modal=True,
             title=ft.Text("Delete Project"),
-            content=ft.Text(f'Delete project "{project.name}"?\nThis does not delete any files.'),
+            content=ft.Text(
+                f'Delete project "{project.name}"?\nThis does not delete any files.'
+            ),
             actions=[
                 ft.TextButton("Cancel", on_click=cancel),
                 ft.TextButton("Delete", on_click=confirm),
@@ -561,9 +665,7 @@ class App:
     def _refresh_selectors(self) -> None:
         entities = self._economy_editor.available_entities
         if entities:
-            self._entity_dropdown.options = [
-                ft.DropdownOption(key=e) for e in entities
-            ]
+            self._entity_dropdown.options = [ft.DropdownOption(key=e) for e in entities]
             self._entity_dropdown.value = self._economy_editor.current_entity
             self._entity_dropdown.visible = len(entities) > 1
         else:
@@ -581,20 +683,15 @@ class App:
             self._refresh_selectors()
 
     def _on_save(self, e: object) -> None:
-        self._economy_editor.file_display._save(e)
+        self._economy_editor.save_current(e)
 
-    async def _select_config_direct(self, e: object) -> None:
-        files = await ft.FilePicker().pick_files(
-            dialog_title="Select cfgeconomycore.xml",
-            file_type=ft.FilePickerFileType.CUSTOM,
-            allowed_extensions=["xml"],
+    async def _select_economy_dir(self, e: object) -> None:
+        path = await ft.FilePicker().get_directory_path(
+            dialog_title="Select economy directory (mpmissions/<map_name>)",
         )
-        if not files:
+        if not path:
             return
-        path = files[0].path
-        if path is None:
-            return
-        name = os.path.basename(os.path.dirname(path))
+        name = os.path.basename(path)
         if not name or name == "":
             name = "MyProject"
         self._create_project(name, path)
@@ -624,7 +721,12 @@ class App:
             dialog = ft.AlertDialog(
                 title=ft.Text("Not available"),
                 content=ft.Text("Language support coming soon."),
-                actions=[ft.TextButton("OK", on_click=lambda _: self.page.pop_dialog())],
+                actions=[
+                    ft.TextButton(
+                        "OK",
+                        on_click=lambda _: self.page.pop_dialog(),
+                    )
+                ],
             )
             self.page.show_dialog(dialog)
         self.page.update()
@@ -642,20 +744,27 @@ class App:
             await self._settings_service.save_setting("fun_sounds", e.control.value)
         except Exception as ex:
             logger.error("Failed to save fun_sounds setting: %s", ex)
-        if self._entertainment_service.fun_sounds and self._entertainment_service.cat_mode:
-            self._economy_editor.file_display._show_meow_popup()  # type: ignore[union-attr]
+        if (
+            self._entertainment_service.fun_sounds
+            and self._entertainment_service.cat_mode
+        ):
+            await self._economy_editor.file_display._show_meow_popup()
 
     async def _on_fun_messages_change(self, e: ft.ControlEvent) -> None:
         self._entertainment_service.fun_save_messages = e.control.value
         try:
-            await self._settings_service.save_setting("fun_save_messages", e.control.value)
+            await self._settings_service.save_setting(
+                "fun_save_messages", e.control.value
+            )
         except Exception as ex:
             logger.error("Failed to save fun_save_messages setting: %s", ex)
 
     async def _on_meme_change(self, e: ft.ControlEvent) -> None:
         self._entertainment_service.show_meme_on_save = e.control.value
         try:
-            await self._settings_service.save_setting("show_meme_on_save", e.control.value)
+            await self._settings_service.save_setting(
+                "show_meme_on_save", e.control.value
+            )
         except Exception as ex:
             logger.error("Failed to save show_meme_on_save setting: %s", ex)
 
@@ -665,7 +774,7 @@ class App:
             await self._settings_service.save_setting("cat_mode", e.control.value)
         except Exception as ex:
             logger.error("Failed to save cat_mode setting: %s", ex)
-        self._economy_editor.file_display._update_cat_icons()  # type: ignore[union-attr]
+        self._economy_editor.file_display._update_cat_icons()
         self._update_appbar_cat_icons()
         self.page.update()
 
@@ -677,7 +786,7 @@ class App:
         self._new_project_btn.update()
         self._delete_project_btn.update()
         self._settings_btn.update()
-        self._main_appbar.update()
+        self._title_bar.update()
 
     async def _on_terminal_mode_change(self, e: ft.ControlEvent) -> None:
         self._entertainment_service.terminal_mode = e.control.value
@@ -692,7 +801,7 @@ class App:
             await self._settings_service.save_setting("funny_enabled", e.control.value)
         except Exception as ex:
             logger.error("Failed to save funny_enabled setting: %s", ex)
-        self._economy_editor.file_display._update_funny_visibility()  # type: ignore[union-attr]
+        self._economy_editor.file_display._update_funny_visibility()
 
 
 def main(page: ft.Page) -> None:

@@ -24,7 +24,10 @@ class ChipSet:
             icon=ft.Icons.ADD_CIRCLE_OUTLINED,
             tooltip=f"Add {label}" if label else "Add",
             items=[
-                ft.PopupMenuItem(content=ft.Text(o), on_click=lambda _, v=o: self.add(v))
+                ft.PopupMenuItem(
+                    content=ft.Text(o),
+                    on_click=lambda _, v=o: self.add(v),
+                )
                 for o in self._options
             ],
         )
@@ -71,6 +74,10 @@ class ChipSet:
     def refresh(self) -> None:
         delete_icon = ft.Icon(ft.Icons.PETS) if self._cat_mode else None
         self._chips_row.controls = [
-            ft.Chip(label=ft.Text(s), delete_icon=delete_icon, on_delete=lambda _, v=s: self.remove(v))
+            ft.Chip(
+                label=ft.Text(s),
+                delete_icon=delete_icon,
+                on_delete=lambda _, v=s: self.remove(v),
+            )
             for s in sorted(self._values)
         ]

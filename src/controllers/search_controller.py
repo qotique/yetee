@@ -6,6 +6,10 @@ from models.row_data import RowData
 
 logger = logging.getLogger(__name__)
 
+EMPTY_CATEGORY_MARKER = "__empty__"
+EMPTY_USAGE_MARKER = "__usage_empty__"
+EMPTY_VALUE_MARKER = "__value_empty__"
+
 
 class SearchController:
     def __init__(self) -> None:
@@ -32,22 +36,72 @@ class SearchController:
         self._value_filter = (value or "").strip().lower()
 
     def filter_rows(self, rows: list[RowData]) -> list[int]:
-        search_parts = [q.strip() for q in self._search_query.split("|") if q.strip()] if self._search_query else []
-        cat_parts = [p.strip().lower() for p in self._category_filter.split("|") if p.strip()] if self._category_filter else []
-        usage_parts = [p.strip().lower() for p in self._usage_filter.split("|") if p.strip()] if self._usage_filter else []
-        value_parts = [p.strip().lower() for p in self._value_filter.split("|") if p.strip()] if self._value_filter else []
+        search_parts = (
+            [q.strip() for q in self._search_query.split("|") if q.strip()]
+            if self._search_query
+            else []
+        )
+        cat_parts = (
+            [p.strip().lower() for p in self._category_filter.split("|") if p.strip()]
+            if self._category_filter
+            else []
+        )
+        usage_parts = (
+            [p.strip().lower() for p in self._usage_filter.split("|") if p.strip()]
+            if self._usage_filter
+            else []
+        )
+        value_parts = (
+            [p.strip().lower() for p in self._value_filter.split("|") if p.strip()]
+            if self._value_filter
+            else []
+        )
 
         result = [
-            i for i, row in enumerate(rows)
-            if (not search_parts or any(p in row.values.get("name", "").lower() for p in search_parts))
-            and (not cat_parts or any(p in row.values.get("category", "").lower() for p in cat_parts))
-            and (not usage_parts or any(p in row.values.get("usage", "").lower() for p in usage_parts))
-            and (not value_parts or any(p in row.values.get("value", "").lower() for p in value_parts))
+            i
+            for i, row in enumerate(rows)
+            if (
+                not search_parts
+                or any(p in row.values.get("name", "").lower() for p in search_parts)
+            )
+            and (
+                not cat_parts
+                or any(
+                    row.values.get("category", "").strip() == ""
+                    if p == EMPTY_CATEGORY_MARKER
+                    else p in row.values.get("category", "").lower()
+                    for p in cat_parts
+                )
+            )
+            and (
+                not usage_parts
+                or any(
+                    row.values.get("usage", "").strip() == ""
+                    if p == EMPTY_USAGE_MARKER
+                    else p in row.values.get("usage", "").lower()
+                    for p in usage_parts
+                )
+            )
+            and (
+                not value_parts
+                or any(
+                    row.values.get("value", "").strip() == ""
+                    if p == EMPTY_VALUE_MARKER
+                    else p in row.values.get("value", "").lower()
+                    for p in value_parts
+                )
+            )
         ]
 
-        logger.debug("Filter applied: search=%r cat=%r usage=%r value=%r -> %d/%d rows",
-                     self._search_query, self._category_filter, self._usage_filter, self._value_filter,
-                     len(result), len(rows))
+        logger.debug(
+            "Filter applied: search=%r cat=%r usage=%r value=%r -> %d/%d rows",
+            self._search_query,
+            self._category_filter,
+            self._usage_filter,
+            self._value_filter,
+            len(result),
+            len(rows),
+        )
         return result
 
     def reset(self) -> None:

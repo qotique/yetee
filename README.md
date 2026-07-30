@@ -12,7 +12,8 @@ Editor for DayZ `cfgeconomycore.xml` type files. Built with Python and [Flet](ht
 
 ## Features
 
-- **Open `cfgeconomycore.xml`** via native file picker
+- **Open economy directory** (mpmissions/<map_name>/) — `cfgeconomycore.xml` is found automatically inside
+- **Optional profiles directory** — for future use
 - **Edit type files** in a table UI with inline editing (nominal, lifetime, restock, min, quantmin, quantmax, cost, flags, category, usage, value)
 - **Create new type files** — auto-registers in the CE block
 - **Delete type files** — removes from config and disk
@@ -22,7 +23,8 @@ Editor for DayZ `cfgeconomycore.xml` type files. Built with Python and [Flet](ht
 
 ## Возможности
 
-- **Открытие `cfgeconomycore.xml`** через нативный файловый диалог
+- **Открытие папки economy** (mpmissions/<map_name>/) — `cfgeconomycore.xml` находится автоматически
+- **Опциональная папка profiles** — для использования в будущем
 - **Редактирование типов** в таблице с inline-редактированием (nominal, lifetime, restock, min, quantmin, quantmax, cost, flags, category, usage, value)
 - **Создание новых файлов** — авторегистрация в CE блоке
 - **Удаление файлов** — удаление из конфига и с диска
@@ -38,7 +40,7 @@ Editor for DayZ `cfgeconomycore.xml` type files. Built with Python and [Flet](ht
 
 1. Скачайте папку `mpmissions/<map_name>/` с сервера себе на компьютер
 2. Откройте приложение
-3. Выберите `mpmissions/<map_name>/cfgeconomycore.xml`
+3. **Выберите папку `mpmissions/<map_name>/`** как economy directory (приложение само найдёт `cfgeconomycore.xml` внутри)
 4. В выпадающем списке файлов напишите `types.xml` — он будет создан и подключён к CE блоку
 
 Директория CE файлов — `mpmissions/<map_name>/db/`.
@@ -49,7 +51,7 @@ Vanilla `cfgeconomycore.xml` does not contain a CE block. The editor will create
 
 1. Download `mpmissions/<map_name>/` from your server
 2. Open the app
-3. Select `mpmissions/<map_name>/cfgeconomycore.xml`
+3. **Select `mpmissions/<map_name>/` folder** as the economy directory (the app will find `cfgeconomycore.xml` inside)
 4. Type `types.xml` in the file dropdown — it will be created and registered in the CE block
 
 The CE files directory is `mpmissions/<map_name>/db/`.
@@ -62,9 +64,9 @@ You can create a new file with any name (e.g. `my_mod_types.xml`). If the file d
 
 ### Existing `types.xml` in `db/`
 
-Point the editor to `cfgeconomycore.xml`. The editor reads the CE block, finds `types.xml` (or any other registered files), and loads them for editing.
+Point the editor to the economy directory (`mpmissions/<map_name>/`). The editor finds `cfgeconomycore.xml` inside, reads the CE block, finds `types.xml` (or any other registered files), and loads them for editing.
 
-Укажите путь к `cfgeconomycore.xml`. Редактор прочитает CE блок, найдёт `types.xml` (или другие зарегистрированные файлы) и загрузит их для редактирования.
+Укажите economy директорию (`mpmissions/<map_name>/`). Редактор найдёт внутри `cfgeconomycore.xml`, прочитает CE блок, найдёт `types.xml` (или другие зарегистрированные файлы) и загрузит их для редактирования.
 
 ## Installation
 
@@ -117,20 +119,22 @@ uv run flet run
 ## Usage / Использование
 
 1. Launch the app (double-click binary or `uv run flet run`)
-2. Click **"Select cfgeconomycore.xml"**
-3. Pick your server's config file
-4. Edit type files in the table — all changes are inline
-5. Click **Save** to persist changes
-6. Upload the modified files back to your server
+2. Click **"Select economy directory"** (or create a New Project)
+3. Pick your `mpmissions/<map_name>/` folder — `cfgeconomycore.xml` is found automatically
+4. (Optional) Select a **profiles directory**
+5. Edit type files in the table — all changes are inline
+6. Click **Save** to persist changes
+7. Upload the modified files back to your server
 
 ---
 
 1. Запустите приложение (двойной клик по бинарнику или `uv run flet run`)
-2. Нажмите **"Select cfgeconomycore.xml"**
-3. Выберите конфиг вашего сервера
-4. Редактируйте типы в таблице — изменения применяются сразу
-5. Нажмите **Save** для сохранения
-6. Загрузите изменённые файлы обратно на сервер
+2. Нажмите **"Select economy directory"** (или создайте новый проект)
+3. Выберите папку `mpmissions/<map_name>/` — `cfgeconomycore.xml` найдётся автоматически
+4. (Опционально) Укажите **папку profiles**
+5. Редактируйте типы в таблице — изменения применяются сразу
+6. Нажмите **Save** для сохранения
+7. Загрузите изменённые файлы обратно на сервер
 
 ## Testing / Тестирование
 

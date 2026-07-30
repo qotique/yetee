@@ -31,7 +31,9 @@ def setup_logging(
 
     stderr_handler = logging.StreamHandler()
     stderr_handler.setLevel(logging.WARNING)
-    stderr_handler.setFormatter(logging.Formatter("[%(levelname)s] %(name)s: %(message)s"))
+    stderr_handler.setFormatter(
+        logging.Formatter("[%(levelname)s] %(name)s: %(message)s")
+    )
 
     root = logging.getLogger()
     root.setLevel(level)

@@ -46,6 +46,106 @@ def mock_page():
     return page
 
 
+@pytest.fixture
+def economy_dir_with_config(tmp_path):
+    """Create a directory with cfgeconomycore.xml inside."""
+    d = tmp_path / "mpmissions" / "chernarusplus"
+    d.mkdir(parents=True)
+    config = d / "cfgeconomycore.xml"
+    config.write_text(CE_XML)
+    return d
+
+
+# ── EconomyService: new directory-based API ──────────────────────────────
+
+
+def test_economy_find_config_found(economy_dir_with_config):
+    from services.economy_service import EconomyService
+
+    svc = EconomyService()
+    result = svc.find_config(str(economy_dir_with_config))
+    assert result is not None
+    assert result.endswith("cfgeconomycore.xml")
+
+
+def test_economy_find_config_not_found(tmp_path):
+    from services.economy_service import EconomyService
+
+    svc = EconomyService()
+    result = svc.find_config(str(tmp_path))
+    assert result is None
+
+
+def test_economy_get_type_files_from_dir(economy_dir_with_config):
+    from services.economy_service import EconomyService
+
+    svc = EconomyService()
+    files = svc.get_type_files(str(economy_dir_with_config))
+    assert "types.xml" in files
+    assert "weapons.xml" in files
+    assert files["types.xml"].endswith("types.xml")
+    assert "db" in files["types.xml"]  # folder=db
+
+
+def test_economy_get_types_dir_from_dir(economy_dir_with_config):
+    from services.economy_service import EconomyService
+
+    svc = EconomyService()
+    types_dir = svc.get_types_dir(str(economy_dir_with_config))
+    expected = os.path.join(str(economy_dir_with_config), "db")
+    assert types_dir == expected
+
+
+def test_economy_get_types_dir_no_config(tmp_path):
+    from services.economy_service import EconomyService
+
+    svc = EconomyService()
+    types_dir = svc.get_types_dir(str(tmp_path))
+    assert types_dir == str(tmp_path)
+
+
+def test_economy_get_type_files_no_config(tmp_path):
+    from services.economy_service import EconomyService
+
+    svc = EconomyService()
+    files = svc.get_type_files(str(tmp_path))
+    assert files == {}
+
+
+# ── Project: backward compatibility ──────────────────────────────────────
+
+
+def test_project_from_dict_migrates_config_path():
+    from models.project import Project
+
+    data = {
+        "name": "Legacy",
+        "config_path": "/some/dir/cfgeconomycore.xml",
+        "types_dir": "/some/dir/db",
+        "created_at": 1000.0,
+        "last_opened": 2000.0,
+    }
+    project = Project.from_dict(data)
+    assert project.economy_dir == "/some/dir"
+    assert project.types_dir == "/some/dir/db"
+    assert project.profiles_dir == ""
+
+
+def test_project_to_dict_uses_economy_dir():
+    from models.project import Project
+
+    project = Project(
+        name="Test",
+        economy_dir="/eco",
+        types_dir="/eco/db",
+        profiles_dir="/profiles",
+    )
+    d = project.to_dict()
+    assert d["economy_dir"] == "/eco"
+    assert "config_path" not in d
+    assert d["profiles_dir"] == "/profiles"
+
+
 # ── ConfigService: load_files ─────────────────────────────────────────────
 
 
@@ -267,19 +367,29 @@ async def test_settings_round_trip(mock_page):
 
 def test_app_creates_service_instances(mock_page):
     from unittest.mock import patch, MagicMock
+
     with patch("flet.FilePicker"):
         from main import App
         from services.config_service import ConfigService
         from services.entertainment_service import EntertainmentService
         from services.settings_service import SettingsService
         from services.update_service import UpdateService
+
         config_service = ConfigService()
         settings_service = SettingsService(mock_page)
         update_service = UpdateService(mock_page)
         entertainment_service = EntertainmentService()
         project_service = MagicMock()
         economy_editor = MagicMock()
-        app = App(mock_page, config_service, settings_service, update_service, entertainment_service, project_service, economy_editor)
+        app = App(
+            mock_page,
+            config_service,
+            settings_service,
+            update_service,
+            entertainment_service,
+            project_service,
+            economy_editor,
+        )
         assert hasattr(app, "_config_service")
         assert hasattr(app, "_settings_service")
         assert hasattr(app, "_update_service")
@@ -290,19 +400,29 @@ def test_app_creates_service_instances(mock_page):
 
 def test_app_delegates_config_service(ce_file, mock_page, tmp_path):
     from unittest.mock import patch, MagicMock
+
     with patch("flet.FilePicker"):
         from main import App
         from services.config_service import ConfigService
         from services.entertainment_service import EntertainmentService
         from services.settings_service import SettingsService
         from services.update_service import UpdateService
+
         config_service = ConfigService()
         settings_service = SettingsService(mock_page)
         update_service = UpdateService(mock_page)
         entertainment_service = EntertainmentService()
         project_service = MagicMock()
         economy_editor = MagicMock()
-        app = App(mock_page, config_service, settings_service, update_service, entertainment_service, project_service, economy_editor)
+        app = App(
+            mock_page,
+            config_service,
+            settings_service,
+            update_service,
+            entertainment_service,
+            project_service,
+            economy_editor,
+        )
 
         svc = app._config_service
         result = svc.load_files(str(ce_file))
@@ -312,17 +432,27 @@ def test_app_delegates_config_service(ce_file, mock_page, tmp_path):
 
 def test_app_delegates_settings_service(mock_page):
     from unittest.mock import patch, MagicMock
+
     with patch("flet.FilePicker"):
         from main import App
         from services.config_service import ConfigService
         from services.entertainment_service import EntertainmentService
         from services.settings_service import SettingsService
         from services.update_service import UpdateService
+
         config_service = ConfigService()
         settings_service = SettingsService(mock_page)
         update_service = UpdateService(mock_page)
         entertainment_service = EntertainmentService()
         project_service = MagicMock()
         economy_editor = MagicMock()
-        app = App(mock_page, config_service, settings_service, update_service, entertainment_service, project_service, economy_editor)
+        app = App(
+            mock_page,
+            config_service,
+            settings_service,
+            update_service,
+            entertainment_service,
+            project_service,
+            economy_editor,
+        )
         assert app._settings_service is not None
