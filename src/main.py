@@ -696,16 +696,19 @@ class App:
             name = "MyProject"
         self._create_project(name, path)
 
+    async def _save_setting(self, key: str, value: object) -> None:
+        try:
+            await self._settings_service.save_setting(key, value)
+        except Exception as ex:
+            logger.error("Failed to save %s setting: %s", key, ex)
+
     async def _on_theme_change(self, e: ft.ControlEvent) -> None:
         theme = e.control.value
         if theme not in THEMES:
             return
         self.selected_theme = theme
         self.page.theme_mode = THEMES[theme]
-        try:
-            await self._settings_service.save_setting("theme", theme)
-        except Exception as ex:
-            logger.error("Failed to save theme setting: %s", ex)
+        await self._save_setting("theme", theme)
         self.page.update()
 
     async def _on_language_change(self, e: ft.ControlEvent) -> None:
@@ -713,10 +716,7 @@ class App:
         if lang not in LANGUAGES:
             return
         self.selected_language = lang
-        try:
-            await self._settings_service.save_setting("language", lang)
-        except Exception as ex:
-            logger.error("Failed to save language setting: %s", ex)
+        await self._save_setting("language", lang)
         if lang != "English":
             dialog = ft.AlertDialog(
                 title=ft.Text("Not available"),
@@ -733,17 +733,11 @@ class App:
 
     async def _on_check_updates_change(self, e: ft.ControlEvent) -> None:
         self.check_updates = e.control.value
-        try:
-            await self._settings_service.save_setting("check_updates", e.control.value)
-        except Exception as ex:
-            logger.error("Failed to save check_updates setting: %s", ex)
+        await self._save_setting("check_updates", e.control.value)
 
     async def _on_fun_sounds_change(self, e: ft.ControlEvent) -> None:
         self._entertainment_service.fun_sounds = e.control.value
-        try:
-            await self._settings_service.save_setting("fun_sounds", e.control.value)
-        except Exception as ex:
-            logger.error("Failed to save fun_sounds setting: %s", ex)
+        await self._save_setting("fun_sounds", e.control.value)
         if (
             self._entertainment_service.fun_sounds
             and self._entertainment_service.cat_mode
@@ -752,28 +746,15 @@ class App:
 
     async def _on_fun_messages_change(self, e: ft.ControlEvent) -> None:
         self._entertainment_service.fun_save_messages = e.control.value
-        try:
-            await self._settings_service.save_setting(
-                "fun_save_messages", e.control.value
-            )
-        except Exception as ex:
-            logger.error("Failed to save fun_save_messages setting: %s", ex)
+        await self._save_setting("fun_save_messages", e.control.value)
 
     async def _on_meme_change(self, e: ft.ControlEvent) -> None:
         self._entertainment_service.show_meme_on_save = e.control.value
-        try:
-            await self._settings_service.save_setting(
-                "show_meme_on_save", e.control.value
-            )
-        except Exception as ex:
-            logger.error("Failed to save show_meme_on_save setting: %s", ex)
+        await self._save_setting("show_meme_on_save", e.control.value)
 
     async def _on_cat_mode_change(self, e: ft.ControlEvent) -> None:
         self._entertainment_service.cat_mode = e.control.value
-        try:
-            await self._settings_service.save_setting("cat_mode", e.control.value)
-        except Exception as ex:
-            logger.error("Failed to save cat_mode setting: %s", ex)
+        await self._save_setting("cat_mode", e.control.value)
         self._economy_editor.file_display._update_cat_icons()
         self._economy_editor.event_display._update_cat_icons()
         self._update_appbar_cat_icons()
@@ -791,17 +772,11 @@ class App:
 
     async def _on_terminal_mode_change(self, e: ft.ControlEvent) -> None:
         self._entertainment_service.terminal_mode = e.control.value
-        try:
-            await self._settings_service.save_setting("terminal_mode", e.control.value)
-        except Exception as ex:
-            logger.error("Failed to save terminal_mode setting: %s", ex)
+        await self._save_setting("terminal_mode", e.control.value)
 
     async def _on_funny_enabled_change(self, e: ft.ControlEvent) -> None:
         self._entertainment_service.funny_enabled = e.control.value
-        try:
-            await self._settings_service.save_setting("funny_enabled", e.control.value)
-        except Exception as ex:
-            logger.error("Failed to save funny_enabled setting: %s", ex)
+        await self._save_setting("funny_enabled", e.control.value)
         self._economy_editor.file_display._update_funny_visibility()
 
 

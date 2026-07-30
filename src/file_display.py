@@ -24,7 +24,13 @@ from controllers.table_controller import (
     PAGE_SIZE,
     DEFAULT_FLAG_NAMES,
 )
-from models.field_def import CATEGORIES, FieldDef, STATIC_FIELD_DEFS, USAGES, VALUES_LIST
+from models.field_def import (
+    CATEGORIES,
+    FieldDef,
+    STATIC_FIELD_DEFS,
+    USAGES,
+    VALUES_LIST,
+)
 from models.row_data import RowData
 from repository.file_cache import FileCache
 from repository.xml_repository import XmlRepository

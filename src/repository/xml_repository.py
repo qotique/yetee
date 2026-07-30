@@ -17,7 +17,6 @@ logger = logging.getLogger(__name__)
 _executor = ThreadPoolExecutor(max_workers=2)
 
 
-
 def _names_to_str(elems: list[ET.Element]) -> str:
     names = [e.get("name", "") for e in elems if e.get("name")]
     return ", ".join(names)

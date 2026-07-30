@@ -17,7 +17,6 @@ logger = logging.getLogger(__name__)
 _executor = ThreadPoolExecutor(max_workers=2)
 
 
-
 EVENT_FLAG_NAMES = ["deletable", "init_random", "remove_damaged"]
 
 EVENT_POSITION_OPTIONS = ["fixed", "player", "uniform"]
