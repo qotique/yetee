@@ -94,3 +94,33 @@ STATIC_FIELD_DEFS: list[FieldDef] = [
 ]
 
 NUM_BASE_COLS = len(STATIC_FIELD_DEFS)
+
+CATEGORIES = [
+    "clothes",
+    "containers",
+    "explosives",
+    "food",
+    "lootdispatch",
+    "tools",
+    "weapons",
+]
+USAGES = [
+    "Coast",
+    "ContaminatedArea",
+    "Farm",
+    "Firefighter",
+    "Historical",
+    "Hunting",
+    "Industrial",
+    "Lunapark",
+    "Medic",
+    "Military",
+    "Office",
+    "Police",
+    "Prison",
+    "School",
+    "SeasonalEvent",
+    "Town",
+    "Village",
+]
+VALUES_LIST = ["Tier0", "Tier1", "Tier2", "Tier3", "Tier4", "Unique"]

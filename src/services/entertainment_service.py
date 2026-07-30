@@ -72,36 +72,6 @@ CAT_TIPS = [
     "Meow, meow, meow! Meow, meow!",
 ]
 
-CATEGORIES = [
-    "clothes",
-    "containers",
-    "explosives",
-    "food",
-    "lootdispatch",
-    "tools",
-    "weapons",
-]
-USAGES = [
-    "Coast",
-    "ContaminatedArea",
-    "Farm",
-    "Firefighter",
-    "Historical",
-    "Hunting",
-    "Industrial",
-    "Lunapark",
-    "Medic",
-    "Military",
-    "Office",
-    "Police",
-    "Prison",
-    "School",
-    "SeasonalEvent",
-    "Town",
-    "Village",
-]
-VALUES_LIST = ["Tier0", "Tier1", "Tier2", "Tier3", "Tier4", "Unique"]
-
 
 class EntertainmentService:
     def __init__(self) -> None:

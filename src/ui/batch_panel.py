@@ -4,18 +4,8 @@ from collections.abc import Callable
 
 import flet as ft
 
-from models.field_def import STATIC_FIELD_DEFS
+from models.field_def import CATEGORIES, STATIC_FIELD_DEFS
 from ui.chip_set import ChipSet
-
-CATEGORIES = [
-    "clothes",
-    "containers",
-    "explosives",
-    "food",
-    "lootdispatch",
-    "tools",
-    "weapons",
-]
 
 
 class BatchPanel:

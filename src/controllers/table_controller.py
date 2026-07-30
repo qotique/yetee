@@ -5,42 +5,10 @@ import logging
 
 import flet as ft
 
-from models.field_def import FieldDef, FieldType, STATIC_FIELD_DEFS
+from models.field_def import CATEGORIES, FieldDef, FieldType, STATIC_FIELD_DEFS
 from models.row_data import RowData
 
 logger = logging.getLogger(__name__)
-
-NUM_BASE_COLS = len(STATIC_FIELD_DEFS)
-
-CATEGORIES = [
-    "clothes",
-    "containers",
-    "explosives",
-    "food",
-    "lootdispatch",
-    "tools",
-    "weapons",
-]
-USAGES = [
-    "Coast",
-    "ContaminatedArea",
-    "Farm",
-    "Firefighter",
-    "Historical",
-    "Hunting",
-    "Industrial",
-    "Lunapark",
-    "Medic",
-    "Military",
-    "Office",
-    "Police",
-    "Prison",
-    "School",
-    "SeasonalEvent",
-    "Town",
-    "Village",
-]
-VALUES_LIST = ["Tier0", "Tier1", "Tier2", "Tier3", "Tier4", "Unique"]
 
 PAGE_SIZE = 50
 
