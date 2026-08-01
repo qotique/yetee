@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 import logging
 
 import flet as ft
@@ -9,10 +10,6 @@ from file_display import FileDisplay
 from models.project import Project
 from services.config_service import ConfigService
 from services.economy_service import EconomyService
-from services.entertainment_service import EntertainmentService
-from repository.event_repository import EventRepository
-from repository.file_cache import FileCache
-from repository.xml_repository import XmlRepository
 
 logger = logging.getLogger(__name__)
 
@@ -25,13 +22,23 @@ ENTITY_LABELS: dict[str, str] = {
 }
 
 TYPES_ENTITY = "Types"
-SINGLE_FILE_ENTITIES: set[str] = {
-    "Events",
-    "Globals",
-    "Spawnable Types",
-    "Random Presets",
-}
 ADD_TAB_LABEL = "+"
+
+
+class _EntityConfig:
+    __slots__ = ("display", "show_tabs", "show_add_tab", "schedule_load")
+
+    def __init__(
+        self,
+        display: FileDisplay | EventDisplay,
+        show_tabs: bool = True,
+        show_add_tab: bool = False,
+        schedule_load: Callable[[], None] | None = None,
+    ) -> None:
+        self.display = display
+        self.show_tabs = show_tabs
+        self.show_add_tab = show_add_tab
+        self.schedule_load = schedule_load
 
 
 def _get_entity(filename: str) -> str:
@@ -42,15 +49,12 @@ class EconomyEditor:
     def __init__(
         self,
         page: ft.Page,
+        file_display: FileDisplay,
+        event_display: EventDisplay,
         config_service: ConfigService | None = None,
-        entertainment_service: EntertainmentService | None = None,
-        file_cache: FileCache | None = None,
     ):
         self._page = page
         self._config_service: ConfigService | None = config_service
-        self._entertainment_service = entertainment_service
-        self._cache: FileCache = file_cache or FileCache()
-        self._xml_repo = XmlRepository(cache=self._cache)
 
         self._project: Project | None = None
         self._entities: dict[str, dict[str, str]] = {}
@@ -58,25 +62,41 @@ class EconomyEditor:
         self._current_file: str | None = None
         self._add_tab_index: int | None = None
 
-        self._file_display = FileDisplay(
-            page=self._page,
-            xml_repo=self._xml_repo,
-            cache=self._cache,
-            entertainment_service=self._entertainment_service,
-        )
-
-        self._event_display = EventDisplay(
-            page=self._page,
-            event_repo=EventRepository(cache=self._cache),
-            cache=self._cache,
-            entertainment_service=self._entertainment_service,
-        )
+        self._file_display = file_display
+        self._event_display = event_display
 
         self._content_slot = ft.Container(
             expand=True, content=self._file_display.control
         )
 
-        self._using_event_display: bool = False
+        self._entity_configs: dict[str, _EntityConfig] = {
+            TYPES_ENTITY: _EntityConfig(
+                display=self._file_display,
+                show_tabs=True,
+                show_add_tab=True,
+                schedule_load=self._schedule_load,
+            ),
+            "Events": _EntityConfig(
+                display=self._event_display,
+                show_tabs=False,
+                schedule_load=self._schedule_event_load,
+            ),
+            "Globals": _EntityConfig(
+                display=self._file_display,
+                show_tabs=False,
+                schedule_load=self._schedule_load,
+            ),
+            "Spawnable Types": _EntityConfig(
+                display=self._file_display,
+                show_tabs=False,
+                schedule_load=self._schedule_load,
+            ),
+            "Random Presets": _EntityConfig(
+                display=self._file_display,
+                show_tabs=False,
+                schedule_load=self._schedule_load,
+            ),
+        }
 
         self._load_seq: int = 0
         self._tabs: ft.Tabs | None = None
@@ -188,38 +208,26 @@ class EconomyEditor:
         files = self._entities[entity]
         file_labels = list(files.keys())
         self._current_entity = entity
-        self._using_event_display = entity == "Events"
 
-        if self._using_event_display:
-            self._content_slot.content = self._event_display.control
-            self._editor_stack.controls = [
-                self._event_display.button_row,
-                self._content_slot,
-            ]
-            self._current_file = None
-            try:
-                self.control.update()
-            except RuntimeError:
-                pass
-            self._schedule_event_load()
+        config = self._entity_configs[entity]
+        display = config.display
+
+        self._content_slot.content = display.control
+        if config.show_tabs:
+            self._build_tabs(file_labels, config.show_add_tab)
+            self._editor_stack.controls = [display.button_row, self._tabs, self._content_slot]
         else:
-            show_add = entity == TYPES_ENTITY
-            self._build_tabs(file_labels, show_add)
-            self._content_slot.content = self._file_display.control
-            self._editor_stack.controls = [
-                self._file_display.button_row,
-                self._tabs,
-                self._content_slot,
-            ]
-            if file_labels:
-                self._current_file = file_labels[0]
-            else:
-                self._current_file = None
-            try:
-                self.control.update()
-            except RuntimeError:
-                pass
-            self._schedule_load()
+            self._editor_stack.controls = [display.button_row, self._content_slot]
+
+        self._current_file = file_labels[0] if file_labels else None
+
+        try:
+            self.control.update()
+        except RuntimeError:
+            pass
+
+        if config.schedule_load is not None:
+            config.schedule_load()
 
     def switch_file(self, label: str) -> None:
         if self._current_entity is None or self._current_entity not in self._entities:
@@ -243,10 +251,11 @@ class EconomyEditor:
         self._event_display.save_file()
 
     def save_current(self, e: object = None) -> None:
-        if self._using_event_display:
-            self._event_display.save_current(e)
-        else:
-            self._file_display.save_current(e)
+        if self._current_entity is None:
+            return
+        config = self._entity_configs.get(self._current_entity)
+        if config is not None:
+            config.display.save_current(e)
 
     @property
     def project(self) -> Project | None:
