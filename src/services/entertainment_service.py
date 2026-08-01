@@ -80,7 +80,6 @@ class EntertainmentService:
         self._unlocked_achievements: set[int] = set()
         self.cat_mode: bool = False
         self.terminal_mode: bool = False
-        self.fun_sounds: bool = False
         self.fun_save_messages: bool = False
         self.show_meme_on_save: bool = False
         self.funny_enabled: bool = False

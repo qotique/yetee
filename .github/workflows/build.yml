@@ -39,9 +39,11 @@ jobs:
             --collect-all flet \
             --collect-all flet_desktop \
             --collect-all lxml \
+            --collect-all certifi \
             --add-data "src/main.py:." \
             --add-data "src/file_display.py:." \
             --add-data "src/assets:assets" \
+            --runtime-hook "src/runtime_fix_ssl.py" \
             src/main.py
       - name: Upload Linux artifact
         uses: actions/upload-artifact@v4
@@ -68,9 +70,11 @@ jobs:
             --collect-all flet `
             --collect-all flet_desktop `
             --collect-all lxml `
+            --collect-all certifi `
             --add-data "src/main.py;." `
             --add-data "src/file_display.py;." `
             --add-data "src/assets;assets" `
+            --runtime-hook "src/runtime_fix_ssl.py" `
             src/main.py
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4

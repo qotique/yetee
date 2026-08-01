@@ -1276,9 +1276,6 @@ class FileDisplay:
             self._save_text.value = "Saved"
             self._save_text.color = ft.Colors.GREEN
 
-        if self._entertainment_service.fun_sounds:
-            self._page.run_task(self._show_pixel_effect)
-
         if self._entertainment_service.show_meme_on_save:
             self._page.run_task(self._show_meme_dialog)
 
@@ -1305,27 +1302,6 @@ class FileDisplay:
         self._save_text.value = "Saved"
         self._save_text.color = ft.Colors.GREEN
         self._save_text.update()
-
-    async def _show_pixel_effect(self) -> None:
-        effect = ft.Container(
-            content=ft.Text(
-                "★ SAVE! ★",
-                size=28,
-                weight=ft.FontWeight.BOLD,
-                color=ft.Colors.AMBER_ACCENT,
-            ),
-            bgcolor=ft.Colors.with_opacity(0.8, ft.Colors.BLACK),
-            border_radius=12,
-            padding=ft.Padding(30, 15, 30, 15),
-        )
-        self._page.overlay.append(effect)
-        self._page.update()
-        await asyncio.sleep(0.9)
-        try:
-            self._page.overlay.remove(effect)
-            self._page.update()
-        except ValueError:
-            pass
 
     async def _show_meme_dialog(self) -> None:
         url = None

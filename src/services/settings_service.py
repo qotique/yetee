@@ -27,7 +27,6 @@ class SettingsService:
             "theme",
             "language",
             "check_updates",
-            "fun_sounds",
             "fun_save_messages",
             "show_meme_on_save",
             "cat_mode",

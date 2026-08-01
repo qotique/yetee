@@ -188,10 +188,6 @@ class App:
             value=self.check_updates,
             on_change=self._on_check_updates_change,
         )
-        self._fun_sounds_switch = ft.Switch(
-            value=self._entertainment_service.fun_sounds,
-            on_change=self._on_fun_sounds_change,
-        )
         self._fun_messages_switch = ft.Switch(
             value=self._entertainment_service.fun_save_messages,
             on_change=self._on_fun_messages_change,
@@ -259,11 +255,6 @@ class App:
                                     "Entertainment",
                                     weight=ft.FontWeight.BOLD,
                                     size=14,
-                                ),
-                                ft.ListTile(
-                                    title=ft.Text("Fun sounds (visual effect)"),
-                                    trailing=self._fun_sounds_switch,
-                                    dense=True,
                                 ),
                                 ft.ListTile(
                                     title=ft.Text("Fun save messages"),
@@ -359,7 +350,6 @@ class App:
         self._theme_dropdown.value = self.selected_theme
         self._language_dropdown.value = self.selected_language
         self._check_updates_switch.value = self.check_updates
-        self._fun_sounds_switch.value = self._entertainment_service.fun_sounds
         self._fun_messages_switch.value = self._entertainment_service.fun_save_messages
         self._meme_switch.value = self._entertainment_service.show_meme_on_save
         self._cat_mode_switch.value = self._entertainment_service.cat_mode
@@ -401,8 +391,6 @@ class App:
                 assert isinstance(updates, bool)
                 self.check_updates = updates
             es = self._entertainment_service
-            if "fun_sounds" in settings:
-                es.fun_sounds = bool(settings["fun_sounds"])
             if "fun_save_messages" in settings:
                 es.fun_save_messages = bool(settings["fun_save_messages"])
             if "show_meme_on_save" in settings:
@@ -735,15 +723,6 @@ class App:
         self.check_updates = e.control.value
         await self._save_setting("check_updates", e.control.value)
 
-    async def _on_fun_sounds_change(self, e: ft.ControlEvent) -> None:
-        self._entertainment_service.fun_sounds = e.control.value
-        await self._save_setting("fun_sounds", e.control.value)
-        if (
-            self._entertainment_service.fun_sounds
-            and self._entertainment_service.cat_mode
-        ):
-            await self._economy_editor.file_display.show_meow_popup()
-
     async def _on_fun_messages_change(self, e: ft.ControlEvent) -> None:
         self._entertainment_service.fun_save_messages = e.control.value
         await self._save_setting("fun_save_messages", e.control.value)
@@ -783,20 +762,14 @@ class App:
 def main(page: ft.Page) -> None:
     setup_logging()
     services = create_app_services(page)
-    project_service = ProjectService()
-    economy_editor = EconomyEditor(
-        page=page,
-        config_service=services["config_service"],
-        entertainment_service=services["entertainment_service"],
-    )
     App(
         page=page,
         config_service=services["config_service"],
         settings_service=services["settings_service"],
         update_service=services["update_service"],
         entertainment_service=services["entertainment_service"],
-        project_service=project_service,
-        economy_editor=economy_editor,
+        project_service=services["project_service"],
+        economy_editor=services["economy_editor"],
     )
     page.update()
 
