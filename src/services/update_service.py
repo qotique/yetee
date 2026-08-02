@@ -19,7 +19,9 @@ class UpdateService:
     def __init__(self, page: ft.Page) -> None:
         self._page = page
 
-    async def check_for_updates(self, current_version: str, show_up_to_date: bool = False) -> None:
+    async def check_for_updates(
+        self, current_version: str, show_up_to_date: bool = False
+    ) -> None:
         logger.info("Checking for updates (current=%s)", current_version)
         try:
             url = f"{_GITHUB_API}/releases/latest"
@@ -39,9 +41,10 @@ class UpdateService:
                 if not release_notes:
                     release_notes = await self._fetch_commit_message(latest_tag)
                 await self._show_update_dialog(
-                    latest_tag,
-                    data.get("html_url", ""),
-                    release_notes or "",
+                    current_version=current_version,
+                    latest_tag=latest_tag,
+                    release_url=data.get("html_url", ""),
+                    release_notes=release_notes or "",
                 )
             elif show_up_to_date:
                 logger.debug("Already up to date (v%s)", current_version)
@@ -72,17 +75,23 @@ class UpdateService:
             logger.debug("Failed to fetch commit message: %s", ex)
             return None
 
-    async def _show_update_dialog(self, latest_tag: str, release_url: str, release_notes: str) -> None:
+    async def _show_update_dialog(
+        self,
+        current_version: str,
+        latest_tag: str,
+        release_url: str,
+        release_notes: str,
+    ) -> None:
         notes_text = (
             release_notes
             if release_notes
             else "No release notes provided with this release.\n"
-                 "See the release page on GitHub for details."
+            "See the release page on GitHub for details."
         )
         alert = ft.AlertDialog(
             title=ft.Text(f"Update Available: {latest_tag}"),
             content=ft.Text(
-                f"Current version: {latest_tag}\n"
+                f"Current version: {current_version}\n"
                 f"Latest version: {latest_tag}\n\n"
                 f"--- Release Notes ---\n\n"
                 f"{notes_text}",

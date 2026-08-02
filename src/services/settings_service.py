@@ -24,9 +24,14 @@ class SettingsService:
         logger.debug("Loading settings")
         sp = self._page.shared_preferences
         keys = [
-            "theme", "language", "check_updates",
-            "fun_sounds", "fun_save_messages", "show_meme_on_save",
-            "cat_mode", "terminal_mode", "funny_enabled",
+            "theme",
+            "language",
+            "check_updates",
+            "fun_save_messages",
+            "show_meme_on_save",
+            "cat_mode",
+            "terminal_mode",
+            "funny_enabled",
             "achievements",
         ]
         try:

@@ -5,16 +5,10 @@ import logging
 
 import flet as ft
 
-from models.field_def import FieldDef, FieldType, STATIC_FIELD_DEFS
+from models.field_def import CATEGORIES, FieldDef, FieldType, STATIC_FIELD_DEFS
 from models.row_data import RowData
 
 logger = logging.getLogger(__name__)
-
-NUM_BASE_COLS = len(STATIC_FIELD_DEFS)
-
-CATEGORIES = ["clothes", "containers", "explosives", "food", "lootdispatch", "tools", "weapons"]
-USAGES = ["Coast", "ContaminatedArea", "Farm", "Firefighter", "Historical", "Hunting", "Industrial", "Lunapark", "Medic", "Military", "Office", "Police", "Prison", "School", "SeasonalEvent", "Town", "Village"]
-VALUES_LIST = ["Tier0", "Tier1", "Tier2", "Tier3", "Tier4", "Unique"]
 
 PAGE_SIZE = 50
 
@@ -48,7 +42,11 @@ class TableController:
         self._header_row = ft.Row(spacing=6)
         self._body_column = ft.Column(spacing=0, scroll=ft.ScrollMode.AUTO, expand=True)
         self._table_inner = ft.Column(
-            [self._header_row, ft.Divider(height=1, color=ft.Colors.OUTLINE_VARIANT), self._body_column],
+            [
+                self._header_row,
+                ft.Divider(height=1, color=ft.Colors.OUTLINE_VARIANT),
+                self._body_column,
+            ],
             spacing=0,
         )
 
@@ -100,10 +98,15 @@ class TableController:
             width = max(60, len(fn) * 8 + 24)
             self._field_defs.append(FieldDef(fn, fn, FieldType.FLAG, width=width))
 
-        self._field_defs.append(FieldDef(
-            "category", "Category", FieldType.SINGLE_NAMED,
-            width=150, options=CATEGORIES,
-        ))
+        self._field_defs.append(
+            FieldDef(
+                "category",
+                "Category",
+                FieldType.SINGLE_NAMED,
+                width=150,
+                options=CATEGORIES,
+            )
+        )
 
         self._col_widths = [fd.width for fd in self._field_defs]
         table_width = sum(self._col_widths) + (len(self._field_defs) - 1) * 6
@@ -112,9 +115,15 @@ class TableController:
         header_cells = []
         for fd in self._field_defs:
             text_align = align_right if fd.align == align_right else ft.TextAlign.LEFT
-            cell_align = ft.Alignment.CENTER_RIGHT if text_align == align_right else ft.Alignment.CENTER_LEFT
+            cell_align = (
+                ft.Alignment.CENTER_RIGHT
+                if text_align == align_right
+                else ft.Alignment.CENTER_LEFT
+            )
             hc = ft.Container(
-                content=ft.Text(fd.label, size=12, weight=ft.FontWeight.BOLD, text_align=text_align),
+                content=ft.Text(
+                    fd.label, size=12, weight=ft.FontWeight.BOLD, text_align=text_align
+                ),
                 width=fd.width,
                 height=36,
                 alignment=cell_align,
@@ -141,7 +150,8 @@ class TableController:
                         border_color=ft.Colors.with_opacity(0.5, ft.Colors.OUTLINE),
                         focused_border_color=ft.Colors.PRIMARY,
                         filled=False,
-                        options=[ft.DropdownOption(key="", text="")] + [ft.DropdownOption(key=c) for c in (fd.options or [])],
+                        options=[ft.DropdownOption(key="", text="")]
+                        + [ft.DropdownOption(key=c) for c in (fd.options or [])],
                         on_select=self._on_field_change,
                         hover_color=ft.Colors.TRANSPARENT,
                         on_focus=lambda e, idx=ri: self._trigger_row_click(idx),
@@ -184,18 +194,30 @@ class TableController:
                 row_cells.append(cell)
 
             self._pool_fields.append(fields)
-            self._pool_rows.append(ft.Container(
-                content=ft.Row(row_cells, spacing=6),
-                bgcolor=None,
-                border=ft.border.Border(
-                    bottom=ft.border.BorderSide(1, ft.Colors.with_opacity(0.12, ft.Colors.OUTLINE_VARIANT)),
-                ),
-                on_click=lambda e, idx=ri: self._trigger_row_click(idx),
-                on_hover=lambda e, idx=ri: self._trigger_row_hover(e, idx),
-                on_tap_down=lambda e, idx=ri: self._trigger_row_tap_down(e, idx),
-            ))
+            self._pool_rows.append(
+                ft.Container(
+                    content=ft.Row(row_cells, spacing=6),
+                    bgcolor=None,
+                    border=ft.border.Border(
+                        bottom=ft.border.BorderSide(
+                            1,
+                            ft.Colors.with_opacity(
+                                0.12,
+                                ft.Colors.OUTLINE_VARIANT,
+                            ),
+                        ),
+                    ),
+                    on_click=lambda e, idx=ri: self._trigger_row_click(idx),
+                    on_hover=lambda e, idx=ri: self._trigger_row_hover(e, idx),
+                    on_tap_down=lambda e, idx=ri: self._trigger_row_tap_down(e, idx),
+                )
+            )
 
-        logger.debug("Table pool initialized: %d rows x %d cols", PAGE_SIZE, len(self._field_defs))
+        logger.debug(
+            "Table pool initialized: %d rows x %d cols",
+            PAGE_SIZE,
+            len(self._field_defs),
+        )
 
     def _on_field_change(self, e: object) -> None:
         if self._on_field_change_cb:
@@ -213,8 +235,14 @@ class TableController:
         if self._on_row_tap_down_cb:
             self._on_row_tap_down_cb(e, pool_slot)
 
-    def render(self, rows: list[RowData], filtered: list[int], page_idx: int, selected_indices: set[int]) -> None:
-        syncing = getattr(self, '_syncing', False)
+    def render(
+        self,
+        rows: list[RowData],
+        filtered: list[int],
+        page_idx: int,
+        selected_indices: set[int],
+    ) -> None:
+        syncing = getattr(self, "_syncing", False)
         start = page_idx * PAGE_SIZE
         end = min(start + PAGE_SIZE, len(filtered))
         count = end - start
@@ -222,7 +250,9 @@ class TableController:
         for i in range(count):
             actual_idx = filtered[start + i]
             row_data = rows[actual_idx]
-            self._pool_rows[i].bgcolor = ft.Colors.PRIMARY_CONTAINER if actual_idx in selected_indices else None
+            self._pool_rows[i].bgcolor = (
+                ft.Colors.PRIMARY_CONTAINER if actual_idx in selected_indices else None
+            )
             for j, fd in enumerate(self._field_defs):
                 field = self._pool_fields[i][j]
                 if fd.is_flag():
@@ -238,7 +268,9 @@ class TableController:
             self._body_column.controls = self._pool_rows[:count]
             self._prev_count = count
 
-    def sync_back(self, rows: list[RowData], filtered: list[int], page_idx: int) -> None:
+    def sync_back(
+        self, rows: list[RowData], filtered: list[int], page_idx: int
+    ) -> None:
         start = page_idx * PAGE_SIZE
         for i in range(len(self._body_column.controls)):
             row_idx = filtered[start + i] if start + i < len(filtered) else -1

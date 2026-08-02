@@ -33,8 +33,13 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install pyinstaller flet flet-desktop lxml
-      - name: Build Linux
+      - name: Download client and Build Linux
         run: |
+          VER=$(python -c "import flet_desktop.version as v; print(v.version)")
+          DISTRO=$(python -c "import flet_desktop; print(flet_desktop.__get_linux_distro_id())")
+          ARTIFACT="flet-linux-${DISTRO}-light-amd64.tar.gz"
+          curl -fL -o "$ARTIFACT" \
+            "https://github.com/flet-dev/flet/releases/download/v${VER}/${ARTIFACT}"
           pyinstaller --clean --onefile --name types_editor_linux \
             --collect-all flet \
             --collect-all flet_desktop \
@@ -42,6 +47,7 @@ jobs:
             --add-data "src/main.py:." \
             --add-data "src/file_display.py:." \
             --add-data "src/assets:assets" \
+            --add-data "flet-linux-${DISTRO}-light-amd64.tar.gz:flet_desktop/app" \
             src/main.py
       - name: Upload Linux artifact
         uses: actions/upload-artifact@v4
@@ -61,9 +67,11 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install pyinstaller flet flet-desktop lxml
-      - name: Build Windows
+      - name: Download client and Build Windows
         shell: pwsh
         run: |
+          $VER = python -c "import flet_desktop.version as v; print(v.version)"
+          Invoke-WebRequest -Uri "https://github.com/flet-dev/flet/releases/download/v${VER}/flet-windows.zip" -OutFile flet-windows.zip
           pyinstaller --clean --onefile --name types_editor_windows.exe `
             --collect-all flet `
             --collect-all flet_desktop `
@@ -71,6 +79,7 @@ jobs:
             --add-data "src/main.py;." `
             --add-data "src/file_display.py;." `
             --add-data "src/assets;assets" `
+            --add-data "flet-windows.zip;flet_desktop/app" `
             src/main.py
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4

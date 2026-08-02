@@ -6,10 +6,11 @@ from lxml import etree as ET
 
 from controllers.table_controller import _collect_flag_names
 from file_display import FileDisplay
-from repository.xml_repository import _elem_text
+from repository.xml_utils import elem_text
 
 
 # ── Parsing ─────────────────────────────────────────────────────────────
+
 
 def test_load_file_parses_correct_row_count(small_types_file, mock_page):
     fd = FileDisplay(page=mock_page)
@@ -69,6 +70,7 @@ def test_load_file_parses_flags(small_types_file, mock_page):
 
 # ── Filter ──────────────────────────────────────────────────────────────
 
+
 def test_apply_filter_by_name(small_types_file, mock_page):
     fd = FileDisplay(page=mock_page)
     fd.load_file(str(small_types_file))
@@ -100,6 +102,7 @@ def test_apply_filter_no_match(small_types_file, mock_page):
 
 # ── Caching ─────────────────────────────────────────────────────────────
 
+
 def test_cache_hit_on_reload(small_types_file, mock_page):
     fd = FileDisplay(page=mock_page)
     fd.load_file(str(small_types_file))
@@ -110,6 +113,7 @@ def test_cache_hit_on_reload(small_types_file, mock_page):
 
 
 # ── Clear ───────────────────────────────────────────────────────────────
+
 
 def test_clear_resets_state(small_types_file, mock_page):
     fd = FileDisplay(page=mock_page)
@@ -123,6 +127,7 @@ def test_clear_resets_state(small_types_file, mock_page):
 
 
 # ── Pagination ──────────────────────────────────────────────────────────
+
 
 def test_pagination_initial_page(large_types_file, mock_page):
     fd = FileDisplay(page=mock_page)
@@ -155,6 +160,7 @@ def test_pagination_stays_in_bounds(large_types_file, mock_page):
 
 # ── Dirty flag ──────────────────────────────────────────────────────────
 
+
 def test_edit_sets_dirty(small_types_file, mock_page):
     fd = FileDisplay(page=mock_page)
     fd.load_file(str(small_types_file))
@@ -165,13 +171,14 @@ def test_edit_sets_dirty(small_types_file, mock_page):
 
 # ── Save ────────────────────────────────────────────────────────────────
 
+
 def test_save_updates_xml(small_types_file, mock_page):
     fd = FileDisplay(page=mock_page)
     fd.load_file(str(small_types_file))
     # Modify nominal via widget
     fd._pool_fields[0][1].value = "99"
     fd._on_field_change(None)
-    fd._save(None)
+    fd.save_current(None)
     # Re-read and verify
     tree = ET.parse(str(small_types_file))
     root = tree.getroot()
@@ -184,7 +191,7 @@ def test_save_updates_xml(small_types_file, mock_page):
 def test_save_preserves_unchanged_rows(small_types_file, mock_page):
     fd = FileDisplay(page=mock_page)
     fd.load_file(str(small_types_file))
-    fd._save(None)
+    fd.save_current(None)
     tree = ET.parse(str(small_types_file))
     root = tree.getroot()
     types = root.findall("type")
@@ -192,6 +199,7 @@ def test_save_preserves_unchanged_rows(small_types_file, mock_page):
 
 
 # ── Multi-select ────────────────────────────────────────────────────────
+
 
 def test_multi_select_toggle(mock_page, small_types_file):
     fd = FileDisplay(page=mock_page)
@@ -204,6 +212,7 @@ def test_multi_select_toggle(mock_page, small_types_file):
 
 
 # ── Detail panel: usage chips ───────────────────────────────────────────
+
 
 def test_detail_usage_add(small_types_file, mock_page):
     fd = FileDisplay(page=mock_page)
@@ -241,6 +250,7 @@ def test_detail_value_remove(small_types_file, mock_page):
 
 # ── Batch editing ───────────────────────────────────────────────────────
 
+
 def test_batch_save_field(small_types_file, mock_page):
     fd = FileDisplay(page=mock_page)
     fd.load_file(str(small_types_file))
@@ -260,18 +270,19 @@ def test_batch_save_field(small_types_file, mock_page):
 
 # ── Standalone helpers ──────────────────────────────────────────────────
 
-def test_elem_text_missing(small_types_file):
+
+def testelem_text_missing(small_types_file):
     tree = ET.parse(str(small_types_file))
     root = tree.getroot()
     typ = root.findall("type")[0]
-    assert _elem_text(typ, "nonexistent") == ""
+    assert elem_text(typ, "nonexistent") == ""
 
 
-def test_elem_text_present(small_types_file):
+def testelem_text_present(small_types_file):
     tree = ET.parse(str(small_types_file))
     root = tree.getroot()
     typ = root.findall("type")[0]
-    assert _elem_text(typ, "nominal") == "10"
+    assert elem_text(typ, "nominal") == "10"
 
 
 def test_collect_flag_names(small_types_file, mock_page):

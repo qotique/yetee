@@ -98,7 +98,11 @@ LARGE_TYPES_XML_ROW = """  <type name="Item_Test_{n}">
 
 def _make_large_xml(row_count: int) -> str:
     rows = "\n".join(LARGE_TYPES_XML_ROW.format(n=i) for i in range(row_count))
-    return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<types>\n' + rows + "\n</types>"
+    return (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<types>\n'
+        + rows
+        + "\n</types>"
+    )
 
 
 @pytest.fixture

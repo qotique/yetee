@@ -10,28 +10,11 @@ from exceptions import ParseError, AccessError
 from models.field_def import STATIC_FIELD_DEFS
 from models.row_data import RowData
 from repository.file_cache import FileCache
+from repository.xml_utils import elem_text, set_elem_text
 
 logger = logging.getLogger(__name__)
 
 _executor = ThreadPoolExecutor(max_workers=2)
-
-
-def _elem_text(parent: ET.Element, tag: str, default: str = "") -> str:
-    elem = parent.find(tag)
-    if elem is not None and elem.text:
-        return str(elem.text).strip()
-    return default
-
-
-def _set_elem_text(parent: ET.Element, tag: str, value: str) -> None:
-    elem = parent.find(tag)
-    if elem is not None:
-        if value:
-            elem.text = value
-        else:
-            parent.remove(elem)
-    elif value:
-        ET.SubElement(parent, tag).text = value
 
 
 def _names_to_str(elems: list[ET.Element]) -> str:
@@ -99,15 +82,17 @@ class XmlRepository:
             elem = row_data.elem
             assert elem is not None
             elem.set("name", row_data.values.get("name", ""))
-            _set_elem_text(elem, "nominal", row_data.values.get("nominal", ""))
-            _set_elem_text(elem, "lifetime", row_data.values.get("lifetime", ""))
-            _set_elem_text(elem, "restock", row_data.values.get("restock", ""))
-            _set_elem_text(elem, "min", row_data.values.get("min", ""))
-            _set_elem_text(elem, "quantmin", row_data.values.get("quantmin", ""))
-            _set_elem_text(elem, "quantmax", row_data.values.get("quantmax", ""))
-            _set_elem_text(elem, "cost", row_data.values.get("cost", ""))
+            set_elem_text(elem, "nominal", row_data.values.get("nominal", ""))
+            set_elem_text(elem, "lifetime", row_data.values.get("lifetime", ""))
+            set_elem_text(elem, "restock", row_data.values.get("restock", ""))
+            set_elem_text(elem, "min", row_data.values.get("min", ""))
+            set_elem_text(elem, "quantmin", row_data.values.get("quantmin", ""))
+            set_elem_text(elem, "quantmax", row_data.values.get("quantmax", ""))
+            set_elem_text(elem, "cost", row_data.values.get("cost", ""))
             self._update_flags(elem, row_data.flags)
-            self._update_single_named(elem, "category", row_data.values.get("category", ""))
+            self._update_single_named(
+                elem, "category", row_data.values.get("category", "")
+            )
             self._update_multi_named(elem, "usage", row_data.values.get("usage", ""))
             self._update_multi_named(elem, "value", row_data.values.get("value", ""))
 
@@ -138,7 +123,7 @@ class XmlRepository:
             if fd.key == "name":
                 values[fd.key] = type_elem.get("name", "")
             else:
-                values[fd.key] = _elem_text(type_elem, fd.key)
+                values[fd.key] = elem_text(type_elem, fd.key)
 
         cat_elem = type_elem.find("category")
         values["category"] = cat_elem.get("name", "") if cat_elem is not None else ""
@@ -147,7 +132,9 @@ class XmlRepository:
 
         return RowData(
             values=values,
-            flags={k: v for k, v in flags_elem.attrib.items()} if flags_elem is not None else {},
+            flags={k: v for k, v in flags_elem.attrib.items()}
+            if flags_elem is not None
+            else {},
             elem=type_elem,
         )
 

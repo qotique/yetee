@@ -4,10 +4,8 @@ from collections.abc import Callable
 
 import flet as ft
 
-from models.field_def import STATIC_FIELD_DEFS
+from models.field_def import CATEGORIES, STATIC_FIELD_DEFS
 from ui.chip_set import ChipSet
-
-CATEGORIES = ["clothes", "containers", "explosives", "food", "lootdispatch", "tools", "weapons"]
 
 
 class BatchPanel:
@@ -80,42 +78,69 @@ class BatchPanel:
         for fd in STATIC_FIELD_DEFS:
             if fd.key == "name":
                 continue
-            w: ft.Control = ft.TextField(value="", dense=True, text_size=12, hint_text="", expand=True)
+            w: ft.Control = ft.TextField(
+                value="",
+                dense=True,
+                text_size=12,
+                hint_text="",
+                expand=True,
+            )
             self._field_controls[fd.key] = w
             btn = ft.IconButton(
-                icon=ft.Icons.SAVE, icon_size=18, tooltip=f"Set {fd.label}",
+                icon=ft.Icons.SAVE,
+                icon_size=18,
+                tooltip=f"Set {fd.label}",
                 on_click=lambda _, k=fd.key: self._on_save(k),
             )
             self._save_buttons.append(btn)
-            controls.append(ft.Row([
-                ft.Text(fd.label, width=70, size=12),
-                w,
-                btn,
-            ], spacing=4, vertical_alignment=ft.CrossAxisAlignment.CENTER))
+            controls.append(
+                ft.Row(
+                    [
+                        ft.Text(fd.label, width=70, size=12),
+                        w,
+                        btn,
+                    ],
+                    spacing=4,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                )
+            )
 
         cat_dd = ft.Dropdown(
-            value="", dense=True, text_size=12,
+            value="",
+            dense=True,
+            text_size=12,
             expand=True,
-            options=[ft.DropdownOption(key="", text="")] + [ft.DropdownOption(key=c) for c in CATEGORIES],
+            options=[ft.DropdownOption(key="", text="")]
+            + [ft.DropdownOption(key=c) for c in CATEGORIES],
         )
         self._field_controls["category"] = cat_dd
         cat_btn = ft.IconButton(
-            icon=ft.Icons.SAVE, icon_size=18, tooltip="Set Category",
+            icon=ft.Icons.SAVE,
+            icon_size=18,
+            tooltip="Set Category",
             on_click=lambda _: self._on_save("category"),
         )
         self._save_buttons.append(cat_btn)
-        controls.append(ft.Row([
-            ft.Text("Category", width=70, size=12),
-            cat_dd,
-            cat_btn,
-        ], spacing=4, vertical_alignment=ft.CrossAxisAlignment.CENTER))
+        controls.append(
+            ft.Row(
+                [
+                    ft.Text("Category", width=70, size=12),
+                    cat_dd,
+                    cat_btn,
+                ],
+                spacing=4,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            )
+        )
 
         controls.append(ft.Divider(height=4))
         controls.append(ft.Text("Usage", size=12, weight=ft.FontWeight.BOLD))
         if self._usage_chipset:
             controls.append(self._usage_chipset.build_controls())
         usage_btn = ft.IconButton(
-            icon=ft.Icons.SAVE, icon_size=18, tooltip="Apply Usage",
+            icon=ft.Icons.SAVE,
+            icon_size=18,
+            tooltip="Apply Usage",
             on_click=lambda _: self._on_save("usage"),
         )
         self._save_buttons.append(usage_btn)
@@ -126,7 +151,9 @@ class BatchPanel:
         if self._value_chipset:
             controls.append(self._value_chipset.build_controls())
         value_btn = ft.IconButton(
-            icon=ft.Icons.SAVE, icon_size=18, tooltip="Apply Value",
+            icon=ft.Icons.SAVE,
+            icon_size=18,
+            tooltip="Apply Value",
             on_click=lambda _: self._on_save("value"),
         )
         self._save_buttons.append(value_btn)
@@ -139,15 +166,23 @@ class BatchPanel:
                 cb = ft.Checkbox(label="", value=False)
                 self._flag_checkboxes[fn] = cb
                 flag_btn = ft.IconButton(
-                    icon=ft.Icons.SAVE, icon_size=18, tooltip=f"Set {fn}",
+                    icon=ft.Icons.SAVE,
+                    icon_size=18,
+                    tooltip=f"Set {fn}",
                     on_click=lambda _, flag=fn: self._on_save(f"flag:{flag}"),
                 )
                 self._save_buttons.append(flag_btn)
-                controls.append(ft.Row([
-                    ft.Text(f"  {fn}", width=130, size=12),
-                    cb,
-                    flag_btn,
-                ], spacing=4, vertical_alignment=ft.CrossAxisAlignment.CENTER))
+                controls.append(
+                    ft.Row(
+                        [
+                            ft.Text(f"  {fn}", width=130, size=12),
+                            cb,
+                            flag_btn,
+                        ],
+                        spacing=4,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    )
+                )
 
         controls.append(ft.Container(expand=True))
         controls.append(self._tips_switcher)

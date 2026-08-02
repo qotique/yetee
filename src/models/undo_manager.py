@@ -23,7 +23,14 @@ class UndoManager:
         self._max = max_history
 
     def take_snapshot(self, rows: list[RowData]) -> list[RowSnapshot]:
-        return [RowSnapshot(values=dict(r.values), flags=dict(r.flags), elem=r.elem) for r in rows]
+        return [
+            RowSnapshot(
+                values=dict(r.values),
+                flags=dict(r.flags),
+                elem=r.elem,
+            )
+            for r in rows
+        ]
 
     def record(self, snapshot: list[RowSnapshot]) -> None:
         self._undo_stack.append(snapshot)
@@ -47,7 +54,12 @@ class UndoManager:
         self._apply(rows, snapshot, root)
         return True
 
-    def _apply(self, rows: list[RowData], snapshot: list[RowSnapshot], root: ET.Element | None = None) -> None:
+    def _apply(
+        self,
+        rows: list[RowData],
+        snapshot: list[RowSnapshot],
+        root: ET.Element | None = None,
+    ) -> None:
         if len(rows) != len(snapshot):
             snapshot_elems = {id(s.elem) for s in snapshot if s.elem is not None}
 
@@ -64,7 +76,11 @@ class UndoManager:
             current_elems = {id(r.elem) for r in rows if r.elem is not None}
             for si, s in enumerate(snapshot):
                 if s.elem is not None and id(s.elem) not in current_elems:
-                    new_row = RowData(values=dict(s.values), flags=dict(s.flags), elem=s.elem)
+                    new_row = RowData(
+                        values=dict(s.values),
+                        flags=dict(s.flags),
+                        elem=s.elem,
+                    )
                     if root is not None and s.elem.getparent() != root:
                         root.append(s.elem)
                     rows.insert(si, new_row)
@@ -85,6 +101,3 @@ class UndoManager:
     @property
     def can_redo(self) -> bool:
         return len(self._redo_stack) > 0
-
-
-

@@ -72,10 +72,6 @@ CAT_TIPS = [
     "Meow, meow, meow! Meow, meow!",
 ]
 
-CATEGORIES = ["clothes", "containers", "explosives", "food", "lootdispatch", "tools", "weapons"]
-USAGES = ["Coast", "ContaminatedArea", "Farm", "Firefighter", "Historical", "Hunting", "Industrial", "Lunapark", "Medic", "Military", "Office", "Police", "Prison", "School", "SeasonalEvent", "Town", "Village"]
-VALUES_LIST = ["Tier0", "Tier1", "Tier2", "Tier3", "Tier4", "Unique"]
-
 
 class EntertainmentService:
     def __init__(self) -> None:
@@ -84,7 +80,6 @@ class EntertainmentService:
         self._unlocked_achievements: set[int] = set()
         self.cat_mode: bool = False
         self.terminal_mode: bool = False
-        self.fun_sounds: bool = False
         self.fun_save_messages: bool = False
         self.show_meme_on_save: bool = False
         self.funny_enabled: bool = False
@@ -99,7 +94,10 @@ class EntertainmentService:
 
     def check_achievements(self) -> int | None:
         for threshold in sorted(ACHIEVEMENTS):
-            if self.total_edits >= threshold and threshold not in self._unlocked_achievements:
+            if (
+                self.total_edits >= threshold
+                and threshold not in self._unlocked_achievements
+            ):
                 self._unlocked_achievements.add(threshold)
                 self._achievement_dirty = True
                 return threshold
@@ -141,6 +139,8 @@ class EntertainmentService:
     def achievements_str(self, value: str) -> None:
         if value:
             try:
-                self._unlocked_achievements = set(int(x) for x in value.split(",") if x.strip())
+                self._unlocked_achievements = set(
+                    int(x) for x in value.split(",") if x.strip()
+                )
             except (ValueError, TypeError):
                 pass

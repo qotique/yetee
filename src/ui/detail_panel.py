@@ -25,12 +25,22 @@ class DetailPanel:
         self._header = ft.Text("", size=14, weight=ft.FontWeight.BOLD)
         self._container = ft.Column()
 
-    def show(self, row: RowData, usage_options: list[str], value_options: list[str]) -> None:
+    def show(
+        self, row: RowData, usage_options: list[str], value_options: list[str]
+    ) -> None:
         self._selected_row = row
-        usage_values = [x.strip() for x in row.values.get("usage", "").split(",") if x.strip()]
-        value_values = [x.strip() for x in row.values.get("value", "").split(",") if x.strip()]
-        self._usage_chipset = ChipSet(usage_values, usage_options, on_change=self._on_changed)
-        self._value_chipset = ChipSet(value_values, value_options, on_change=self._on_changed)
+        usage_values = [
+            x.strip() for x in row.values.get("usage", "").split(",") if x.strip()
+        ]
+        value_values = [
+            x.strip() for x in row.values.get("value", "").split(",") if x.strip()
+        ]
+        self._usage_chipset = ChipSet(
+            usage_values, usage_options, on_change=self._on_changed
+        )
+        self._value_chipset = ChipSet(
+            value_values, value_options, on_change=self._on_changed
+        )
         if self._cat_mode:
             self._usage_chipset.set_cat_mode(True)
             self._value_chipset.set_cat_mode(True)
@@ -58,17 +68,21 @@ class DetailPanel:
         ]
         if self._usage_chipset:
             controls.append(self._usage_chipset.build_controls())
-        controls.extend([
-            ft.Divider(height=8),
-            ft.Text("Value", size=12, weight=ft.FontWeight.BOLD),
-        ])
+        controls.extend(
+            [
+                ft.Divider(height=8),
+                ft.Text("Value", size=12, weight=ft.FontWeight.BOLD),
+            ]
+        )
         if self._value_chipset:
             controls.append(self._value_chipset.build_controls())
-        controls.extend([
-            ft.Divider(height=8),
-            ft.Container(expand=True),
-            self._tips_switcher,
-        ])
+        controls.extend(
+            [
+                ft.Divider(height=8),
+                ft.Container(expand=True),
+                self._tips_switcher,
+            ]
+        )
         self._container.controls = controls
 
     def build(self) -> ft.Control:
