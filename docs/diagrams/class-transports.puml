@@ -1,0 +1,77 @@
+@startuml
+' Remote transports (WIP, not on main): IRemoteConnection -> SSH/FTP via factory.
+' ConnectionManager owns ConnectionRepository and stores passwords in keyring.
+' Regenerated: uv run pyreverse src -o puml -p yetee -d docs/diagrams/generated
+'
+' Remote-транспорты (WIP, не в main): IRemoteConnection -> SSH/FTP через фабрику.
+' ConnectionManager владеет ConnectionRepository и хранит пароль в keyring.
+' Регенерируется: uv run pyreverse src -o puml -p yetee -d docs/diagrams/generated
+
+skinparam classAttributeIconSize 0
+hide empty members
+
+interface IRemoteConnection {
+  connected : bool
+  + connect()
+  + disconnect()
+  + list_files(remote_dir) : list[str]
+  + download_file(remote_path, local_path)
+  + upload_file(local_path, remote_path)
+}
+
+class SSHConnection
+class FTPConnection
+class ConnectionFactory <<static>> {
+  + create_connection(config, password) : IRemoteConnection
+}
+
+class ConnectionManager {
+  - _repository : ConnectionRepository
+  - _connections : list[ConnectionConfig]
+  - _active_id : str|None
+  + list_connections() : list[ConnectionConfig]
+  + active_connection : ConnectionConfig (ro)
+  + add(config, password)
+  + remove(config_id)
+  + set_active(config_id)
+  + create(config) : IRemoteConnection
+  + connect(config) / disconnect(config)
+}
+
+class ConnectionRepository {
+  - _path : str
+  + load() : (list[ConnectionConfig], str|None)
+  + save(connections, active_id)
+}
+
+class ConnectionConfig {
+  id, protocol, host, port
+  username, key_path, remote_economy_dir
+}
+
+class KeychainService <<extern>> {
+  set_password(service, id, password)
+  get_password(service, id)
+}
+
+class RemoteSyncService {
+  - _manager : ConnectionManager
+  + sync_to_local(config, remote_dir, local_dir)
+  + upload_to_remote(config, local_dir, remote_dir)
+}
+
+SSHConnection ..|> IRemoteConnection
+FTPConnection ..|> IRemoteConnection
+
+ConnectionManager --> ConnectionRepository : "persists / сохраняет"
+ConnectionManager o--> ConnectionConfig : "list + active"
+ConnectionManager --> ConnectionFactory : "create()"
+ConnectionFactory --> SSHConnection : "instantiates"
+ConnectionFactory --> FTPConnection : "instantiates"
+ConnectionManager --> KeychainService : "stores secrets"
+
+RemoteSyncService --> ConnectionManager : "uses"
+RemoteSyncService --> ConnectionFactory : "create()"
+RemoteSyncService o--> ConnectionConfig : "args"
+
+@enduml

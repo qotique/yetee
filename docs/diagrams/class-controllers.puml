@@ -1,0 +1,64 @@
+@startuml
+' Controllers and UndoManager. Logic is separated from UI: controllers know
+' nothing about services.
+' Regenerated from code: uv run pyreverse src -o puml -p yetee -d docs/diagrams/generated
+'
+' Контроллеры и UndoManager. Раздельная логика от UI: контроллеры не знают про
+' сервисы.
+' Регенерируется из кода: uv run pyreverse src -o puml -p yetee -d docs/diagrams/generated
+
+skinparam classAttributeIconSize 0
+hide empty members
+
+class TableController {
+  - page : ft.Page
+  - _field_defs : list[FieldDef]
+  - _flag_names : list[str]
+  - _col_widths : list[int]
+  + render(rows, filtered, page_idx)
+  + sync_back(rows, filtered, page_idx)
+  + clear()
+}
+class SearchController {
+  + query : str (ro)
+  + filter_rows(rows) : list[int]
+}
+class PaginationController {
+  + page_index : int
+  + page_size : int
+  + total_pages(total_items) : int
+  + visible_range(total_items) : tuple[int,int]
+}
+class DirtyStateManager {
+  + is_dirty : bool
+  + mark_dirty()
+  + mark_clean()
+  + reset()
+}
+class UndoManager {
+  - _undo_stack : list[list[RowSnapshot]]
+  - _redo_stack : list[list[RowSnapshot]]
+  + take_snapshot(rows) : list[RowSnapshot]
+  + can_undo() / can_redo()
+  + undo() / redo()
+}
+class RowSnapshot {
+  values : dict[str,str]
+  flags : dict[str,str]
+}
+
+' FileDisplay and EventDisplay reuse several controllers
+FileDisplay ..> TableController
+FileDisplay ..> SearchController
+FileDisplay ..> PaginationController
+FileDisplay ..> DirtyStateManager
+FileDisplay ..> UndoManager
+EventDisplay ..> TableController
+EventDisplay ..> UndoManager
+
+' FileDisplay и EventDisplay используют несколько контроллеров
+TableController --> RowSnapshot : "handles / обрабатывает"
+UndoManager --> RowSnapshot : "stores / хранит"
+TableController --> FieldDef "FieldDef[]"
+
+@enduml
