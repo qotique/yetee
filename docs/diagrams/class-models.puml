@@ -1,0 +1,87 @@
+@startuml
+' Dataclass models and their relations (src/models/*).
+' Regenerated from code: uv run pyreverse src -o puml -p yetee -d docs/diagrams/generated
+'
+' Dataclass-модели и их отношения (src/models/*).
+' Регенерируется из кода: uv run pyreverse src -o puml -p yetee -d docs/diagrams/generated
+
+skinparam classAttributeIconSize 0
+hide empty members
+
+class RowData {
+  values : dict[str,str]
+  flags : dict[str,str]
+  elem : ET.Element|None
+}
+
+class RowSnapshot {
+  values : dict[str,str]
+  flags : dict[str,str]
+  elem : ET.Element|None
+}
+
+enum FieldType {
+  TEXT
+  FLAG
+  SINGLE_NAMED
+  MULTI_NAMED
+}
+
+class FieldDef {
+  key : str
+  label : str
+  type : FieldType
+  width : int
+  align : ft.TextAlign
+  options : list[str]|None
+  {method} is_flag() / is_text()
+  {method} is_single_named() / is_multi_named()
+}
+
+class UndoManager {
+  - _undo_stack : list[list[RowSnapshot]]
+  - _redo_stack : list[list[RowSnapshot]]
+  + take_snapshot(rows) : list[RowSnapshot]
+  + undo() / redo()
+}
+
+class Project {
+  name : str
+  economy_dir : str
+  types_dir : str
+  profiles_dir : str
+  created_at : float
+  last_opened : float|None
+  + to_dict() : dict
+  + from_dict(d) : Project (static)
+}
+
+class ConnectionConfig {
+  id : str
+  protocol : str
+  host : str
+  port : int
+  username : str
+  key_path : str
+  remote_economy_dir : str
+}
+
+class TypeFile {
+  path : str
+}
+
+' Relations / Отношения
+UndoManager -- RowData : "snapshots / снимает снимок"
+UndoManager *-- "0..*" RowSnapshot : "undo/redo stacks / стеки"
+RowSnapshot ..> RowData : "deep-copy from / deep-copy из"
+FieldDef ..> FieldType
+Project "1" -- "0..*" TypeFile : "types_dir"
+ConnectionConfig "--active" ConnectionManager : "weak ref (WIP)"
+
+' Models are used by services/repositories
+' Модели используются сервисами/репозиториями
+XmlRepository ..> RowData
+EventRepository ..> RowData
+TableController ..> FieldDef
+
+@enduml

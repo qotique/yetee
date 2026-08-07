@@ -136,6 +136,26 @@ uv run flet run
 6. Нажмите **Save** для сохранения
 7. Загрузите изменённые файлы обратно на сервер
 
+## Architecture / Диаграммы
+
+Architecture diagrams (dependencies, data flow, ER-model, class diagrams,
+sequences) live in [docs/diagrams/](docs/diagrams/) — Mermaid (`.md`) renders
+on GitHub, PlantUML (`.puml`) is for IDE/viewer plugins. Class diagrams can be
+regenerated from the code:
+
+```bash
+uv run python scripts/generate_diagrams.py
+```
+
+Диаграммы архитектуры (зависимости, поток данных, ER-модель, class-диаграммы,
+sequence) находятся в [docs/diagrams/](docs/diagrams/) — Mermaid (`.md`)
+рендерится на GitHub, PlantUML (`.puml`) — через плагины в IDE. Class-диаграммы
+можно перегенерировать из кода:
+
+```bash
+uv run python scripts/generate_diagrams.py
+```
+
 ## Testing / Тестирование
 
 ```bash

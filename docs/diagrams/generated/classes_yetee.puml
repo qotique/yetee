@@ -1,0 +1,358 @@
+@startuml classes_yetee
+set namespaceSeparator none
+class "<color:red>AccessError</color>" as src.exceptions.AccessError {
+}
+class "App" as src.main.App {
+  check_updates : bool
+  content_column : Column
+  page : Page
+  selected_language : str
+  selected_theme : str
+  start_container : Container
+  build_main_view() -> ft.View
+  open_settings(e: object) -> None
+  route_change(route: object) -> None
+  view_pop(e: ft.ViewPopEvent) -> None
+}
+class "AppServices" as src.di.AppServices {
+  cache : FileCache
+  config_service : ConfigService
+  economy_editor : EconomyEditor
+  entertainment_service : EntertainmentService
+  project_service : ProjectService
+  settings_service : SettingsService
+  update_service : UpdateService
+}
+class "BatchPanel" as src.ui.batch_panel.BatchPanel {
+  build() -> ft.Control
+  get_values() -> dict[str, object]
+  hide() -> None
+  set_cat_mode(enabled: bool) -> None
+  show(header_text: str, usage_options: list[str], value_options: list[str], flag_names: list[str]) -> None
+}
+class "ChipSet" as src.ui.chip_set.ChipSet {
+  add(value: str) -> None
+  build_controls() -> ft.Control
+  get_values() -> list[str]
+  refresh() -> None
+  remove(value: str) -> None
+  set_cat_mode(enabled: bool) -> None
+}
+class "ConfigService" as src.services.config_service.ConfigService {
+  add_file_to_ce(tree: ET.ElementTree, filename: str) -> bool
+  create_type_file(ce_path: str, filename: str) -> str | None
+  delete_type_file(ce_path: str, filename: str) -> bool
+  get_ce_element(ce_path: str) -> ET.Element | None
+  get_ce_folder(ce_path: str) -> str | None
+  get_types_dir(ce_path: str) -> str | None
+  load_files(ce_path: str) -> list[str]
+  remove_file_from_ce(tree: ET.ElementTree, filename: str) -> bool
+}
+class "DetailPanel" as src.ui.detail_panel.DetailPanel {
+  build() -> ft.Control
+  hide() -> None
+  refresh() -> None
+  set_cat_mode(enabled: bool) -> None
+  show(row: RowData, usage_options: list[str], value_options: list[str]) -> None
+}
+class "DirtyStateManager" as src.controllers.dirty_state_manager.DirtyStateManager {
+  is_dirty : bool
+  is_syncing : bool
+  mark_clean() -> None
+  mark_dirty() -> None
+  reset() -> None
+  set_syncing(value: bool) -> None
+}
+class "EconomyEditor" as src.ui.economy_editor.EconomyEditor {
+  available_entities : list[str]
+  control : Container
+  current_entity : str | None
+  current_file : str | None
+  economy_dir : str | None
+  entity_files : list[str]
+  event_display : EventDisplay
+  file_display : FileDisplay
+  is_types_entity : bool
+  project : Project | None
+  get_file_path(label: str) -> str | None
+  load_project(project: Project) -> None
+  save_current(e: object) -> None
+  save_file() -> None
+  switch_entity(entity: str) -> None
+  switch_file(label: str) -> None
+  unload() -> None
+}
+class "EconomyService" as src.services.economy_service.EconomyService {
+  find_config(economy_dir: str) -> str | None
+  get_all_editable_files(economy_dir: str) -> dict[str, str]
+  get_economy_dir_files(economy_dir: str) -> dict[str, str]
+  get_known_files(directory: str) -> dict[str, str]
+  get_type_files(economy_dir: str) -> dict[str, str]
+  get_types_dir(economy_dir: str) -> str
+}
+class "EntertainmentService" as src.services.entertainment_service.EntertainmentService {
+  achievements_str : str
+  cat_mode : bool
+  edit_stats : dict[str, int]
+  fun_save_messages : bool
+  funny_enabled : bool
+  show_meme_on_save : bool
+  terminal_mode : bool
+  total_edits : int
+  unlocked_achievements : set[int]
+  check_achievements() -> int | None
+  check_easter_egg(name: str) -> tuple[str, str] | None
+  get_achievement_name(threshold: int) -> str | None
+  get_cat_tip(idx: int) -> str
+  get_fun_save_message() -> str
+  get_lucky_phrase() -> str
+  get_stats_text() -> str
+  record_edit(field_key: str) -> None
+}
+class "EventDisplay" as src.event_display.EventDisplay {
+  button_row : Row
+  control : Container
+  clear() -> None
+  load_file(events_path: str, spawns_path: str | None) -> None
+  save_current(e: object) -> None
+  save_file() -> None
+  update_cat_icons() -> None
+}
+class "EventRepository" as src.repository.event_repository.EventRepository {
+  get_children(row: RowData) -> list[dict[str, str]]
+  invalidate_cache(path: str) -> None
+  parse_file(path: str) -> list[RowData]
+  parse_file_async(path: str) -> list[RowData]
+  parse_spawns(path: str) -> dict[str, list[dict[str, str]]]
+  save(path: str, rows: list[RowData]) -> None
+  save_async(path: str, rows: list[RowData]) -> None
+  save_spawns(path: str, spawns: dict[str, dict]) -> None
+  set_children(row: RowData, children: list[dict[str, str]]) -> None
+}
+class "FieldDef" as src.models.field_def.FieldDef {
+  align : TextAlign
+  key : str
+  label : str
+  options : list[str] | None
+  type
+  width : int
+  is_flag() -> bool
+  is_multi_named() -> bool
+  is_single_named() -> bool
+  is_text() -> bool
+}
+class "FieldType" as src.models.field_def.FieldType {
+  name
+}
+class "FileCache" as src.repository.file_cache.FileCache {
+  clear_all() -> None
+  get_rows(path: str) -> list[RowData] | None
+  get_tree(path: str) -> ET.ElementTree | None
+  invalidate(path: str) -> None
+  set_rows(path: str, rows: list[RowData]) -> None
+  set_tree(path: str, tree: ET.ElementTree) -> None
+}
+class "FileDisplay" as src.file_display.FileDisplay {
+  button_row : Row
+  cache : FileCache
+  control : Container
+  xml_repo : XmlRepository
+  clear() -> None
+  clear_cache(path: str) -> None
+  load_file(path: str) -> None
+  load_file_async(path: str, cancel_check: Callable[[], bool] | None) -> None
+  save_current(e: object) -> None
+  save_file() -> None
+  show_meow_popup() -> None
+  update_cat_icons() -> None
+  update_funny_visibility() -> None
+}
+class "IBatchPanel" as src.protocols.IBatchPanel {
+  build() -> object
+  get_values() -> dict[str, object]
+  hide() -> None
+  show(header_text: str, usage_options: list[str], value_options: list[str], flag_names: list[str]) -> None
+}
+class "ICache" as src.protocols.ICache {
+  clear_all() -> None
+  get_rows(path: str) -> list[RowData] | None
+  get_tree(path: str) -> ET.ElementTree | None
+  invalidate(path: str) -> None
+  set_rows(path: str, rows: list[RowData]) -> None
+  set_tree(path: str, tree: ET.ElementTree) -> None
+}
+class "IChipSet" as src.protocols.IChipSet {
+  add(value: str) -> None
+  build_controls() -> object
+  get_values() -> list[str]
+  refresh() -> None
+  remove(value: str) -> None
+}
+class "IConfigService" as src.protocols.IConfigService {
+  add_file_to_ce(tree: ET.ElementTree, filename: str) -> bool
+  create_type_file(ce_path: str, filename: str) -> str | None
+  delete_type_file(ce_path: str, filename: str) -> bool
+  get_ce_element(ce_path: str) -> ET.Element | None
+  get_ce_folder(ce_path: str) -> str | None
+  get_types_dir(ce_path: str) -> str | None
+  load_files(ce_path: str) -> list[str]
+  remove_file_from_ce(tree: ET.ElementTree, filename: str) -> bool
+}
+class "IDetailPanel" as src.protocols.IDetailPanel {
+  build() -> object
+  hide() -> None
+  refresh() -> None
+  show(row: RowData, usage_options: list[str], value_options: list[str]) -> None
+}
+class "IDirtyState" as src.protocols.IDirtyState {
+  is_dirty : bool
+  mark_clean() -> None
+  mark_dirty() -> None
+  reset() -> None
+}
+class "IEconomyEditor" as src.protocols.IEconomyEditor {
+  load_project(project: object) -> None
+  unload() -> None
+}
+class "IEconomyService" as src.protocols.IEconomyService {
+  find_config(economy_dir: str) -> str | None
+  get_all_editable_files(economy_dir: str) -> dict[str, str]
+  get_known_files(directory: str) -> dict[str, str]
+  get_type_files(economy_dir: str) -> dict[str, str]
+  get_types_dir(economy_dir: str) -> str
+}
+class "IPagination" as src.protocols.IPagination {
+  page_index : int
+  page_size : int
+  total_pages(total_items: int) -> int
+  visible_range(total_items: int) -> tuple[int, int]
+}
+class "IProjectService" as src.protocols.IProjectService {
+  add_project(project: object) -> None
+  get_last_project() -> object | None
+  get_project(name: str) -> object | None
+  load_projects() -> list[object]
+  mark_opened(project: object) -> None
+  remove_project(name: str) -> None
+}
+class "ISearch" as src.protocols.ISearch {
+  query : str
+  filter_rows(rows: list[RowData]) -> list[int]
+}
+class "ISettingsService" as src.protocols.ISettingsService {
+  load_settings() -> dict[str, object]
+  save_setting(key: str, value: object) -> None
+}
+class "ITableController" as src.protocols.ITableController {
+  clear() -> None
+  render(rows: list[RowData], filtered: list[int], page_idx: int) -> None
+  sync_back(rows: list[RowData], filtered: list[int], page_idx: int) -> None
+}
+class "IUpdateService" as src.protocols.IUpdateService {
+  check_for_updates(current_version: str, show_up_to_date: bool) -> None
+}
+class "IXmlRepository" as src.protocols.IXmlRepository {
+  invalidate_cache(path: str) -> None
+  parse_file(path: str) -> list[RowData]
+  parse_file_async(path: str) -> list[RowData]
+  save(path: str, rows: list[RowData]) -> None
+  save_async(path: str, rows: list[RowData]) -> None
+}
+class "<color:red>NetworkError</color>" as src.exceptions.NetworkError {
+}
+class "PaginationController" as src.controllers.pagination_controller.PaginationController {
+  page_index : int
+  page_size : int
+  clamp(total_items: int) -> None
+  next_page(total_items: int) -> bool
+  prev_page(total_items: int) -> bool
+  reset() -> None
+  total_pages(total_items: int) -> int
+  visible_range(total_items: int) -> tuple[int, int]
+}
+class "<color:red>ParseError</color>" as src.exceptions.ParseError {
+}
+class "Project" as src.models.project.Project {
+  created_at : float
+  economy_dir : str
+  last_opened : float | None
+  name : str
+  profiles_dir : str
+  types_dir : str
+  from_dict(d: dict[str, object]) -> Project
+  to_dict() -> dict[str, object]
+}
+class "ProjectService" as src.services.project_service.ProjectService {
+  add_project(project: Project) -> None
+  get_last_project() -> Project | None
+  get_project(name: str) -> Project | None
+  load_projects() -> list[Project]
+  mark_opened(project: Project) -> None
+  remove_project(name: str) -> None
+  save_projects(projects: list[Project]) -> None
+}
+class "RowData" as src.models.row_data.RowData {
+  elem : ET.Element | None
+  flags : dict[str, str]
+  values : dict[str, str]
+}
+class "RowSnapshot" as src.models.undo_manager.RowSnapshot {
+  elem : ET.Element | None
+  flags : dict[str, str]
+  values : dict[str, str]
+}
+class "SearchController" as src.controllers.search_controller.SearchController {
+  query : str
+  filter_rows(rows: list[RowData]) -> list[int]
+  reset() -> None
+  set_filters(category: str, usage: str, value: str) -> None
+  set_search(value: str) -> None
+}
+class "SettingsService" as src.services.settings_service.SettingsService {
+  load_settings() -> dict[str, object]
+  save_setting(key: str, value: object) -> None
+}
+class "TableController" as src.controllers.table_controller.TableController {
+  field_defs : list[FieldDef]
+  flag_names : list[str]
+  pool_fields : list[list[ft.Control]]
+  pool_rows : list[ft.Container]
+  clear() -> None
+  get_table_widget() -> ft.Column
+  init_dynamic() -> None
+  render(rows: list[RowData], filtered: list[int], page_idx: int, selected_indices: set[int]) -> None
+  set_callbacks(on_row_click: Callable[[int], None] | None, on_field_change: Callable[[object], None] | None, on_row_hover: Callable[[object, int], None] | None, on_row_tap_down: Callable[[object, int], None] | None) -> None
+  sync_back(rows: list[RowData], filtered: list[int], page_idx: int) -> None
+}
+class "UndoManager" as src.models.undo_manager.UndoManager {
+  can_redo : bool
+  can_undo : bool
+  clear() -> None
+  record(snapshot: list[RowSnapshot]) -> None
+  redo(rows: list[RowData], root: ET.Element | None) -> bool
+  take_snapshot(rows: list[RowData]) -> list[RowSnapshot]
+  undo(rows: list[RowData], root: ET.Element | None) -> bool
+}
+class "UpdateService" as src.services.update_service.UpdateService {
+  check_for_updates(current_version: str, show_up_to_date: bool) -> None
+}
+class "XmlRepository" as src.repository.xml_repository.XmlRepository {
+  invalidate_cache(path: str) -> None
+  parse_file(path: str) -> list[RowData]
+  parse_file_async(path: str) -> list[RowData]
+  save(path: str, rows: list[RowData]) -> None
+  save_async(path: str, rows: list[RowData]) -> None
+}
+class "<color:red>YeteeError</color>" as src.exceptions.YeteeError {
+}
+class "_EntityConfig" as src.ui.economy_editor._EntityConfig {
+  display : FileDisplay | EventDisplay
+  schedule_load : Callable[[], None] | None
+  show_add_tab : bool
+  show_tabs : bool
+}
+src.exceptions.AccessError --|> src.exceptions.YeteeError
+src.exceptions.NetworkError --|> src.exceptions.YeteeError
+src.exceptions.ParseError --|> src.exceptions.YeteeError
+src.models.field_def.FieldDef --> src.models.field_def.FieldType : type
+@enduml

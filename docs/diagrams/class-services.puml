@@ -1,0 +1,75 @@
+@startuml
+' Services and the Protocol interfaces they implement (src/protocols.py).
+' Regenerated from code: uv run pyreverse src -o puml -p yetee -d docs/diagrams/generated
+'
+' Сервисы и реализуемые ими Protocol-интерфейсы (src/protocols.py).
+' Регенерируется из кода: uv run pyreverse src -o puml -p yetee -d docs/diagrams/generated
+
+skinparam classAttributeIconSize 0
+hide empty members
+
+' ---- Протоколы (src/protocols.py) ----
+interface IConfigService
+interface IEconomyService
+interface IProjectService
+interface ISettingsService
+interface IUpdateService
+interface IXmlRepository
+interface ICache
+interface IDetailPanel
+interface IBatchPanel
+interface IChipSet
+interface ITableController
+interface IPagination
+interface ISearch
+interface IDirtyState
+
+' ---- UI Protocols / UI-протоколы ----
+interface IEconomyEditor {
+  + load_project(project)
+  + unload()
+}
+
+' ---- Services ----
+class ConfigService
+class EconomyService
+class ProjectService
+class SettingsService {
+  - page : ft.Page
+  + load_settings()
+  + save_setting(key, value)
+}
+class UpdateService
+class EntertainmentService {
+  edit_stats : dict
+  total_edits : int
+}
+class FileCache
+class XmlRepository
+class EventRepository
+
+ConfigService ..|> IConfigService
+EconomyService ..|> IEconomyService
+ProjectService ..|> IProjectService
+SettingsService ..|> ISettingsService
+UpdateService ..|> IUpdateService
+XmlRepository ..|> IXmlRepository
+XmlRepository --> ICache : "depends"
+EventRepository ..> ICache : "depends"
+FileCache ..|> ICache
+
+' DI wires everything (composition root, src/di.py)
+FileDisplay ..> IXmlRepository
+FileDisplay ..> ICache
+EventDisplay ..> EventRepository
+
+' EconomyService dereferences XML files through ConfigService
+EconomyService --> ConfigService : "uses"
+
+' Utilities / Утилиты
+class xml_utils {
+  + elem_text(parent, tag, default)
+  + set_elem_text(parent, tag, value)
+}
+
+@enduml
