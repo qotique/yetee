@@ -52,6 +52,9 @@ class Project {
   profiles_dir : str
   created_at : float
   last_opened : float|None
+  connection_id : str
+  remote_dir : str
+  {method} is_remote : bool
   + to_dict() : dict
   + from_dict(d) : Project (static)
 }
@@ -64,6 +67,7 @@ class ConnectionConfig {
   username : str
   key_path : str
   remote_economy_dir : str
+  project_name : str
 }
 
 class TypeFile {
@@ -76,7 +80,7 @@ UndoManager *-- "0..*" RowSnapshot : "undo/redo stacks / стеки"
 RowSnapshot ..> RowData : "deep-copy from / deep-copy из"
 FieldDef ..> FieldType
 Project "1" -- "0..*" TypeFile : "types_dir"
-ConnectionConfig "--active" ConnectionManager : "weak ref (WIP)"
+ConnectionConfig "--active" ConnectionManager : "weak ref"
 
 ' Models are used by services/repositories
 ' Модели используются сервисами/репозиториями

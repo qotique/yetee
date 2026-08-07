@@ -10,12 +10,15 @@ from controllers.search_controller import SearchController
 from controllers.table_controller import TableController
 from event_display import EventDisplay
 from file_display import FileDisplay
+from repository.connection_repository import ConnectionRepository
 from repository.event_repository import EventRepository
 from repository.file_cache import FileCache
 from repository.xml_repository import XmlRepository
 from services.config_service import ConfigService
+from services.connection_manager import ConnectionManager
 from services.entertainment_service import EntertainmentService
 from services.project_service import ProjectService
+from services.remote_sync_service import RemoteSyncService
 from services.settings_service import SettingsService
 from services.update_service import UpdateService
 from ui.economy_editor import EconomyEditor
@@ -29,6 +32,8 @@ class AppServices(TypedDict):
     cache: FileCache
     economy_editor: EconomyEditor
     project_service: ProjectService
+    connection_manager: ConnectionManager
+    remote_sync_service: RemoteSyncService
 
 
 def create_file_cache() -> FileCache:
@@ -138,6 +143,8 @@ def create_app_services(page: ft.Page) -> AppServices:
     cache = create_file_cache()
     config_service = create_config_service()
     entertainment_service = create_entertainment_service()
+    connection_manager = ConnectionManager(ConnectionRepository())
+    remote_sync_service = RemoteSyncService(connection_manager)
     return {
         "config_service": config_service,
         "settings_service": create_settings_service(page),
@@ -151,4 +158,6 @@ def create_app_services(page: ft.Page) -> AppServices:
             cache=cache,
         ),
         "project_service": ProjectService(),
+        "connection_manager": connection_manager,
+        "remote_sync_service": remote_sync_service,
     }
