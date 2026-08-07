@@ -1,9 +1,9 @@
 @startuml
-' Remote transports (WIP, not on main): IRemoteConnection -> SSH/FTP via factory.
+' Remote transports (issue/25): IRemoteConnection -> SSH/FTP via factory.
 ' ConnectionManager owns ConnectionRepository and stores passwords in keyring.
 ' Regenerated: uv run pyreverse src -o puml -p yetee -d docs/diagrams/generated
 '
-' Remote-транспорты (WIP, не в main): IRemoteConnection -> SSH/FTP через фабрику.
+' Remote-транспорты (issue/25): IRemoteConnection -> SSH/FTP через фабрику.
 ' ConnectionManager владеет ConnectionRepository и хранит пароль в keyring.
 ' Регенерируется: uv run pyreverse src -o puml -p yetee -d docs/diagrams/generated
 
@@ -47,6 +47,7 @@ class ConnectionRepository {
 class ConnectionConfig {
   id, protocol, host, port
   username, key_path, remote_economy_dir
+  project_name
 }
 
 class KeychainService <<extern>> {

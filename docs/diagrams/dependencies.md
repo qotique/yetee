@@ -9,10 +9,10 @@ root `src/di.py` (`create_app_services`).
 `src/di.py` (`create_app_services`).
 
 > The remote-sync layer (`ConnectionManager`, `RemoteSyncService`, SSH/FTP) is
-> still in development and not merged into `main` — shown with dashed lines.
+> part of the `issue/25` branch (SSH/FTP connections).
 >
 > Слой remote-синхронизации (`ConnectionManager`, `RemoteSyncService`, SSH/FTP)
-> находится в разработке и ещё не вмержен в `main` — показан пунктиром.
+> находится в ветке `issue/25` (SSH/FTP подключения).
 
 ```mermaid
 flowchart TB
@@ -59,7 +59,7 @@ flowchart TB
         proj["Project"]
     end
 
-    subgraph remote["Remote sync (WIP)"]
+    subgraph remote["Remote sync"]
         cm["ConnectionManager"]
         cr["ConnectionRepository"]
         rss["RemoteSyncService"]
@@ -76,6 +76,8 @@ flowchart TB
     di -->|"AppServices"| ent
     di -->|"AppServices"| prj
     di -->|"fixed FileCache"| cache
+    di -->|"creates"| cm
+    di -->|"creates"| rss
     di -->|"creates"| ee
     di -->|"creates (shared cache)"| fd
     di -->|"creates (shared cache)"| evd

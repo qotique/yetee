@@ -1,5 +1,13 @@
 @startuml packages_yetee
 set namespaceSeparator none
+package "src.connection" as src.connection {
+}
+package "src.connection.connection_factory" as src.connection.connection_factory {
+}
+package "src.connection.ftp_connection" as src.connection.ftp_connection {
+}
+package "src.connection.ssh_connection" as src.connection.ssh_connection {
+}
 package "src.controllers" as src.controllers {
 }
 package "src.controllers.dirty_state_manager" as src.controllers.dirty_state_manager {
@@ -24,6 +32,8 @@ package "src.main" as src.main {
 }
 package "src.models" as src.models {
 }
+package "src.models.connection" as src.models.connection {
+}
 package "src.models.field_def" as src.models.field_def {
 }
 package "src.models.project" as src.models.project {
@@ -35,6 +45,8 @@ package "src.models.undo_manager" as src.models.undo_manager {
 package "src.protocols" as src.protocols {
 }
 package "src.repository" as src.repository {
+}
+package "src.repository.connection_repository" as src.repository.connection_repository {
 }
 package "src.repository.event_repository" as src.repository.event_repository {
 }
@@ -48,11 +60,15 @@ package "src.services" as src.services {
 }
 package "src.services.config_service" as src.services.config_service {
 }
+package "src.services.connection_manager" as src.services.connection_manager {
+}
 package "src.services.economy_service" as src.services.economy_service {
 }
 package "src.services.entertainment_service" as src.services.entertainment_service {
 }
 package "src.services.project_service" as src.services.project_service {
+}
+package "src.services.remote_sync_service" as src.services.remote_sync_service {
 }
 package "src.services.settings_service" as src.services.settings_service {
 }
@@ -74,12 +90,15 @@ src.di --> src.controllers.search_controller
 src.di --> src.controllers.table_controller
 src.di --> src.event_display
 src.di --> src.file_display
+src.di --> src.repository.connection_repository
 src.di --> src.repository.event_repository
 src.di --> src.repository.file_cache
 src.di --> src.repository.xml_repository
 src.di --> src.services.config_service
+src.di --> src.services.connection_manager
 src.di --> src.services.entertainment_service
 src.di --> src.services.project_service
+src.di --> src.services.remote_sync_service
 src.di --> src.services.settings_service
 src.di --> src.services.update_service
 src.di --> src.ui.economy_editor
@@ -109,11 +128,14 @@ src.file_display --> src.ui.detail_panel
 src.main --> src.di
 src.main --> src.exceptions
 src.main --> src.logging_setup
+src.main --> src.models.connection
 src.main --> src.models.project
 src.main --> src.services.config_service
+src.main --> src.services.connection_manager
 src.main --> src.services.economy_service
 src.main --> src.services.entertainment_service
 src.main --> src.services.project_service
+src.main --> src.services.remote_sync_service
 src.main --> src.services.settings_service
 src.main --> src.services.update_service
 src.main --> src.ui.economy_editor
