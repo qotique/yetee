@@ -14,6 +14,9 @@ dependencies = [
     "lxml>=5.0.0"
 ]
 
+[tool.uv]
+package = false
+
 [dependency-groups]
 dev = [
     "flet-cli>=0.86.1",
@@ -23,6 +26,7 @@ dev = [
     "pyinstaller",
     "mypy>=1.8.0",
     "pytest-asyncio>=0.23.0",
+    "pylint>=3.0.0",
 ]
 
 [tool.pytest.ini_options]
