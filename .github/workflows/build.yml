@@ -94,6 +94,9 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/download-artifact@v4
         with:
           name: types_editor_linux
@@ -102,11 +105,18 @@ jobs:
         with:
           name: types_editor_windows
           path: dist/
+      - name: Generate changelog
+        uses: orhun/git-cliff-action@v4
+        id: git-cliff
+        with:
+          config: cliff.toml
+          args: --latest --github-repo ${{ github.repository }}
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             dist/types_editor_linux
             dist/types_editor_windows.exe
+          body: ${{ steps.git-cliff.outputs.content }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
