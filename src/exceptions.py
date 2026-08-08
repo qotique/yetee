@@ -10,5 +10,17 @@ class NetworkError(YeteeError):
     """Raised when a network operation fails."""
 
 
+class RemoteConnectionError(NetworkError):
+    """Raised when a remote connection or transfer fails."""
+
+
+class RemoteAuthError(NetworkError):
+    """Raised when remote authentication fails."""
+
+
+class RemoteTimeoutError(NetworkError):
+    """Raised when a remote operation times out."""
+
+
 class AccessError(YeteeError):
     """Raised when file access fails (missing, permissions, etc)."""

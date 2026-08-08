@@ -87,6 +87,8 @@ _TIPS = [
 
 
 class FileDisplay:
+    on_saved: Callable[[], None] | None = None
+
     def __init__(
         self,
         page: ft.Page,
@@ -522,6 +524,8 @@ class FileDisplay:
             self._handle_post_save()
             self._dirty_state.mark_clean()
             logger.info("Saved %s", self._path)
+            if self.on_saved:
+                self.on_saved()
         except Exception as ex:
             self._save_text.value = f"Save error: {ex}"
             self._save_text.color = ft.Colors.RED
@@ -537,6 +541,8 @@ class FileDisplay:
             self._handle_post_save()
             self._dirty_state.mark_clean()
             logger.info("Saved (async) %s", self._path)
+            if self.on_saved:
+                self.on_saved()
         except Exception as ex:
             self._save_text.value = f"Save error: {ex}"
             self._save_text.color = ft.Colors.RED
@@ -1507,6 +1513,8 @@ class FileDisplay:
                 self._dirty_state.mark_clean()
             except Exception as ex:
                 logger.error("Auto-save failed for %s: %s", self._path, ex)
+            if self.on_saved:
+                self.on_saved()
 
     def clear_cache(self, path: str) -> None:
         self.xml_repo.invalidate_cache(path)

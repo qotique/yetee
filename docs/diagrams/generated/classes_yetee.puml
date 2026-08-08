@@ -17,9 +17,11 @@ class "App" as src.main.App {
 class "AppServices" as src.di.AppServices {
   cache : FileCache
   config_service : ConfigService
+  connection_manager : ConnectionManager
   economy_editor : EconomyEditor
   entertainment_service : EntertainmentService
   project_service : ProjectService
+  remote_sync_service : RemoteSyncService
   settings_service : SettingsService
   update_service : UpdateService
 }
@@ -47,6 +49,33 @@ class "ConfigService" as src.services.config_service.ConfigService {
   get_types_dir(ce_path: str) -> str | None
   load_files(ce_path: str) -> list[str]
   remove_file_from_ce(tree: ET.ElementTree, filename: str) -> bool
+}
+class "ConnectionConfig" as src.models.connection.ConnectionConfig {
+  host : str
+  id : str
+  key_path : str
+  port : int
+  project_name : str
+  protocol : str
+  remote_economy_dir : str
+  username : str
+  from_dict(d: dict[str, object]) -> ConnectionConfig
+  to_dict() -> dict[str, object]
+}
+class "ConnectionManager" as src.services.connection_manager.ConnectionManager {
+  active_connection : ConnectionConfig | None
+  add(config: ConnectionConfig, password: str) -> None
+  connect(config: ConnectionConfig) -> None
+  create(config: ConnectionConfig) -> IRemoteConnection
+  disconnect(config: ConnectionConfig) -> None
+  get(config_id: str) -> ConnectionConfig | None
+  list_connections() -> list[ConnectionConfig]
+  remove(config_id: str) -> None
+  set_active(config_id: str | None) -> None
+}
+class "ConnectionRepository" as src.repository.connection_repository.ConnectionRepository {
+  load() -> tuple[list[ConnectionConfig], str | None]
+  save(connections: list[ConnectionConfig], active_id: str | None) -> None
 }
 class "DetailPanel" as src.ui.detail_panel.DetailPanel {
   build() -> ft.Control
@@ -112,6 +141,7 @@ class "EntertainmentService" as src.services.entertainment_service.Entertainment
 class "EventDisplay" as src.event_display.EventDisplay {
   button_row : Row
   control : Container
+  on_saved : Callable[[], None] | None
   clear() -> None
   load_file(events_path: str, spawns_path: str | None) -> None
   save_current(e: object) -> None
@@ -128,6 +158,14 @@ class "EventRepository" as src.repository.event_repository.EventRepository {
   save_async(path: str, rows: list[RowData]) -> None
   save_spawns(path: str, spawns: dict[str, dict]) -> None
   set_children(row: RowData, children: list[dict[str, str]]) -> None
+}
+class "FTPConnection" as src.connection.ftp_connection.FTPConnection {
+  connected : bool
+  connect() -> None
+  disconnect() -> None
+  download_file(remote_path: str, local_path: str) -> None
+  list_files(path: str) -> list[str]
+  upload_file(local_path: str, remote_path: str) -> None
 }
 class "FieldDef" as src.models.field_def.FieldDef {
   align : TextAlign
@@ -156,6 +194,7 @@ class "FileDisplay" as src.file_display.FileDisplay {
   button_row : Row
   cache : FileCache
   control : Container
+  on_saved : Callable[[], None] | None
   xml_repo : XmlRepository
   clear() -> None
   clear_cache(path: str) -> None
@@ -235,6 +274,14 @@ class "IProjectService" as src.protocols.IProjectService {
   mark_opened(project: object) -> None
   remove_project(name: str) -> None
 }
+class "IRemoteConnection" as src.protocols.IRemoteConnection {
+  connected : bool
+  connect() -> None
+  disconnect() -> None
+  download_file(remote_path: str, local_path: str) -> None
+  list_files(path: str) -> list[str]
+  upload_file(local_path: str, remote_path: str) -> None
+}
 class "ISearch" as src.protocols.ISearch {
   query : str
   filter_rows(rows: list[RowData]) -> list[int]
@@ -273,11 +320,14 @@ class "PaginationController" as src.controllers.pagination_controller.Pagination
 class "<color:red>ParseError</color>" as src.exceptions.ParseError {
 }
 class "Project" as src.models.project.Project {
+  connection_id : str
   created_at : float
   economy_dir : str
+  is_remote : bool
   last_opened : float | None
   name : str
   profiles_dir : str
+  remote_dir : str
   types_dir : str
   from_dict(d: dict[str, object]) -> Project
   to_dict() -> dict[str, object]
@@ -291,6 +341,20 @@ class "ProjectService" as src.services.project_service.ProjectService {
   remove_project(name: str) -> None
   save_projects(projects: list[Project]) -> None
 }
+class "<color:red>RemoteAuthError</color>" as src.exceptions.RemoteAuthError {
+}
+class "<color:red>RemoteConnectionError</color>" as src.exceptions.RemoteConnectionError {
+}
+class "<color:red>RemoteNotConnectedError</color>" as src.connection.ftp_connection.RemoteNotConnectedError {
+}
+class "<color:red>RemoteNotConnectedError</color>" as src.connection.ssh_connection.RemoteNotConnectedError {
+}
+class "RemoteSyncService" as src.services.remote_sync_service.RemoteSyncService {
+  sync_to_local(config: ConnectionConfig, remote_dir: str, local_dir: str, connection: IRemoteConnection | None) -> None
+  upload_to_remote(config: ConnectionConfig, local_dir: str, remote_dir: str, connection: IRemoteConnection | None) -> None
+}
+class "<color:red>RemoteTimeoutError</color>" as src.exceptions.RemoteTimeoutError {
+}
 class "RowData" as src.models.row_data.RowData {
   elem : ET.Element | None
   flags : dict[str, str]
@@ -300,6 +364,14 @@ class "RowSnapshot" as src.models.undo_manager.RowSnapshot {
   elem : ET.Element | None
   flags : dict[str, str]
   values : dict[str, str]
+}
+class "SSHConnection" as src.connection.ssh_connection.SSHConnection {
+  connected : bool
+  connect() -> None
+  disconnect() -> None
+  download_file(remote_path: str, local_path: str) -> None
+  list_files(path: str) -> list[str]
+  upload_file(local_path: str, remote_path: str) -> None
 }
 class "SearchController" as src.controllers.search_controller.SearchController {
   query : str
@@ -354,5 +426,8 @@ class "_EntityConfig" as src.ui.economy_editor._EntityConfig {
 src.exceptions.AccessError --|> src.exceptions.YeteeError
 src.exceptions.NetworkError --|> src.exceptions.YeteeError
 src.exceptions.ParseError --|> src.exceptions.YeteeError
+src.exceptions.RemoteAuthError --|> src.exceptions.NetworkError
+src.exceptions.RemoteConnectionError --|> src.exceptions.NetworkError
+src.exceptions.RemoteTimeoutError --|> src.exceptions.NetworkError
 src.models.field_def.FieldDef --> src.models.field_def.FieldType : type
 @enduml

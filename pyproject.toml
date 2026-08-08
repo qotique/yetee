@@ -11,7 +11,10 @@ license = "MIT"
 
 dependencies = [
     "flet>=0.86.1",
-    "lxml>=5.0.0"
+    "lxml>=5.0.0",
+    "asyncssh>=2.15.0",
+    "aioftp>=0.21.4",
+    "keyring>=24.0.0",
 ]
 
 [tool.uv]
@@ -37,13 +40,14 @@ testpaths = ["tests"]
 python_version = "3.10"
 strict = true
 ignore_missing_imports = true
+follow_imports = "skip"
 allow_untyped_calls = false
 allow_untyped_defs = false
 disallow_any_unimported = false
 disallow_untyped_decorators = false
 
 [[tool.mypy.overrides]]
-module = ["flet", "lxml", "lxml.etree"]
+module = ["flet", "lxml", "lxml.etree", "asyncssh", "aioftp", "keyring"]
 ignore_missing_imports = true
 
 [tool.flet]

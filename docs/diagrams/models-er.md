@@ -7,10 +7,10 @@ Relations between dataclass models. The models are primarily data snapshots:
 `RowData` — строка таблицы (types/events), `RowSnapshot` — её снимок для undo.
 
 > `ConnectionConfig` and the remote-project model belong to the remote-sync layer
-> (WIP, not yet on `main`).
+> (`issue/25`: SSH/FTP connections).
 >
 > `ConnectionConfig` и проектная модель remote-проекта относятся к слою
-> remote-синхронизации (WIP, пока не в `main`).
+> remote-синхронизации (`issue/25`: SSH/FTP подключения).
 
 ```mermaid
 erDiagram
@@ -22,6 +22,8 @@ erDiagram
         string profiles_dir
         float created_at
         float last_opened
+        string connection_id
+        string remote_dir
     }
 
     TypeFile ||--o{ RowData : "parses rows"
@@ -69,6 +71,7 @@ erDiagram
         string username
         string key_path
         string remote_economy_dir
+        string project_name
     }
 
     Project {
@@ -84,7 +87,8 @@ Notes / Пояснения:
 - `UndoManager` stores `RowSnapshot`s (deep-copied values), not live `RowData`
   references.
 - `Project.connection_id` is a weak string link to `ConnectionConfig.id` (used
-  by remote projects, WIP).
+  by remote projects). `Project.remote_dir` is the remote economy directory;
+  `Project.is_remote` is true when `connection_id` is set.
 - The `RowData ═ RowSnapshot` relation is implemented in
   `UndoManager.take_snapshot()`.
 
@@ -93,5 +97,6 @@ Notes / Пояснения:
 - `UndoManager` хранит `RowSnapshot`-ы (deep-copy значений), не ссылки на
   живые `RowData`.
 - `Project.connection_id` — слабая связь строкой на `ConnectionConfig.id`
-  (используется remote-проектами, WIP).
+  (используется remote-проектами). `Project.remote_dir` — удалённый каталог
+  экономики; `Project.is_remote` истинно, когда задан `connection_id`.
 - Связь `RowData ═ RowSnapshot` реализована в `UndoManager.take_snapshot()`.
