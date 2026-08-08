@@ -23,6 +23,7 @@ interface ITableController
 interface IPagination
 interface ISearch
 interface IDirtyState
+interface IRemoteConnection {
 
 ' ---- UI Protocols / UI-протоколы ----
 interface IEconomyEditor {
@@ -47,6 +48,19 @@ class EntertainmentService {
 class FileCache
 class XmlRepository
 class EventRepository
+class ConnectionManager {
+  - _repository : ConnectionRepository
+  + add(config, password)
+  + remove(config_id)
+  + set_active(config_id)
+  + create(config) : IRemoteConnection
+  + connect(config) / disconnect(config)
+}
+class RemoteSyncService {
+  - _manager : ConnectionManager
+  + sync_to_local(config, remote_dir, local_dir)
+  + upload_to_remote(config, local_dir, remote_dir)
+}
 
 ConfigService ..|> IConfigService
 EconomyService ..|> IEconomyService
@@ -57,6 +71,8 @@ XmlRepository ..|> IXmlRepository
 XmlRepository --> ICache : "depends"
 EventRepository ..> ICache : "depends"
 FileCache ..|> ICache
+ConnectionManager --> IRemoteConnection : "create()"
+RemoteSyncService --> ConnectionManager : "uses "
 
 ' DI wires everything (composition root, src/di.py)
 FileDisplay ..> IXmlRepository

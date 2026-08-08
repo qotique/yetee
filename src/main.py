@@ -8,18 +8,22 @@ import flet as ft
 from di import create_app_services
 from exceptions import YeteeError, ParseError, AccessError
 from logging_setup import setup_logging
+from models.connection import ConnectionConfig
+from models.project import Project
 from models.project import Project
 from services.config_service import ConfigService
+from services.connection_manager import ConnectionManager
 from services.economy_service import EconomyService
 from services.entertainment_service import EntertainmentService
 from services.project_service import ProjectService
+from services.remote_sync_service import RemoteSyncService
 from services.settings_service import SettingsService, THEMES, LANGUAGES
 from services.update_service import UpdateService
 from ui.economy_editor import EconomyEditor
 
 logger = logging.getLogger(__name__)
 
-VERSION = "0.4.1b"
+VERSION = "0.5.0"
 
 
 class App:
@@ -32,6 +36,8 @@ class App:
         entertainment_service: EntertainmentService,
         project_service: ProjectService,
         economy_editor: EconomyEditor,
+        connection_manager: ConnectionManager | None = None,
+        remote_sync_service: RemoteSyncService | None = None,
     ) -> None:
         self.page = page
         self._config_service = config_service
@@ -40,6 +46,14 @@ class App:
         self._entertainment_service = entertainment_service
         self._project_service = project_service
         self._economy_editor = economy_editor
+        self._connection_manager = connection_manager or ConnectionManager()
+        self._remote_sync = remote_sync_service or RemoteSyncService(
+            self._connection_manager
+        )
+        self._connections_protocol: str = "ssh"
+
+        self._economy_editor.file_display.on_saved = self._on_local_saved
+        self._economy_editor.event_display.on_saved = self._on_local_saved
 
         self.selected_theme: str = "SYSTEM"
         self.selected_language: str = "English"
@@ -127,6 +141,20 @@ class App:
                         "New Project",
                         icon=ft.Icons.ADD_BOX,
                         on_click=self._show_new_project_dialog,
+                    ),
+                    ft.Button(
+                        "Connect via SSH",
+                        icon=ft.Icons.LAN,
+                        on_click=lambda _: self._show_connections_dialog(
+                            protocol="ssh"
+                        ),
+                    ),
+                    ft.Button(
+                        "Connect via FTP",
+                        icon=ft.Icons.CLOUD,
+                        on_click=lambda _: self._show_connections_dialog(
+                            protocol="ftp"
+                        ),
                     ),
                     ft.Button(
                         "Open Project",
@@ -306,6 +334,11 @@ class App:
                         self._new_project_btn,
                         self._delete_project_btn,
                         self._settings_btn,
+                        ft.IconButton(
+                            icon=ft.Icons.SWAP_VERT_CIRCLE,
+                            tooltip="Connections",
+                            on_click=self._show_connections_dialog,
+                        ),
                         ft.IconButton(
                             icon=ft.Icons.CLOSE,
                             on_click=self._close_window,
@@ -509,6 +542,25 @@ class App:
                     name_field,
                     ft.Row([economy_dir_field, browse_economy_btn], spacing=4),
                     ft.Row([profiles_dir_field, browse_profiles_btn], spacing=4),
+                    ft.Divider(height=12),
+                    ft.Row(
+                        [
+                            ft.Text("Add a remote project:", size=12, italic=True),
+                            ft.TextButton(
+                                "via SSH...",
+                                on_click=lambda _: self._show_connections_dialog(
+                                    protocol="ssh"
+                                ),
+                            ),
+                            ft.TextButton(
+                                "via FTP...",
+                                on_click=lambda _: self._show_connections_dialog(
+                                    protocol="ftp"
+                                ),
+                            ),
+                        ],
+                        alignment=ft.MainAxisAlignment.CENTER,
+                    ),
                 ],
                 tight=True,
                 width=500,
@@ -672,6 +724,42 @@ class App:
 
     def _on_save(self, e: object) -> None:
         self._economy_editor.save_current(e)
+        self._on_local_saved()
+
+    def _on_local_saved(self) -> None:
+        project = self._economy_editor.project
+        if project is None or not project.is_remote or not project.connection_id:
+            return
+        cfg = self._connection_manager.get(project.connection_id)
+        if cfg is None:
+            print("[diag save] no connection config found, skip upload")
+            return
+        print(
+            f"[diag save] local saved; scheduling upload to "
+            f"{project.remote_dir or cfg.remote_economy_dir}"
+        )
+        try:
+            self.page.run_task(
+                self._upload_remote,
+                cfg,
+                project.economy_dir,
+                project.remote_dir or cfg.remote_economy_dir,
+            )
+        except RuntimeError as ex:
+            print(f"[diag save] run_task error: {ex!r}")
+
+    async def _upload_remote(
+        self,
+        cfg: ConnectionConfig,
+        local_dir: str,
+        remote_dir: str,
+    ) -> None:
+        print(f"[diag save] _upload_remote start: {local_dir} -> {remote_dir}")
+        try:
+            await self._remote_sync.upload_to_remote(cfg, local_dir, remote_dir)
+            print("[diag save] UPLOAD OK")
+        except Exception as ex:  # noqa: BLE001
+            print(f"[diag save] UPLOAD FAILED: {type(ex).__name__}: {ex!r}")
 
     async def _select_economy_dir(self, e: object) -> None:
         path = await ft.FilePicker().get_directory_path(
@@ -683,6 +771,284 @@ class App:
         if not name or name == "":
             name = "MyProject"
         self._create_project(name, path)
+
+    def _show_connections_dialog(
+        self, e: object = None, protocol: str | None = None
+    ) -> None:
+        if protocol is not None:
+            self._connections_protocol = protocol
+        connections = [
+            c
+            for c in self._connection_manager.list_connections()
+            if c.protocol == self._connections_protocol
+        ]
+        if not connections:
+            hint = ft.Text(
+                f"No {self._connections_protocol.upper()} connections yet. "
+                f"Click Add to connect to a server over "
+                f"{self._connections_protocol.upper()}.",
+                color=ft.Colors.GREY_500,
+            )
+        else:
+            hint = None
+
+        rows: list[ft.Control] = []
+        for index, cfg in enumerate(connections):
+            label = cfg.project_name or cfg.host
+            title = f"{label} · {cfg.host}:{cfg.port} ({cfg.username})"
+            subtitle = f"Remote dir: {cfg.remote_economy_dir or 'not set'}"
+
+            async def open_remote(_e: object, c: ConnectionConfig = cfg) -> None:
+                await self._open_remote_project(c)
+
+            async def test_conn(_e: object, c: ConnectionConfig = cfg) -> None:
+                print(f"[diag] Test button clicked for {c.protocol} {c.host}:{c.port}")
+                await self._test_connection(c)
+
+            del_btn = ft.TextButton(
+                "Delete",
+                on_click=lambda _e, c=cfg: self._delete_connection(c),
+            )
+            open_btn = ft.TextButton(
+                "Open remote",
+                disabled=not cfg.remote_economy_dir,
+                on_click=open_remote,
+            )
+            test_btn = ft.TextButton("Test", on_click=test_conn)
+            item = ft.Row(
+                [
+                    ft.Column(
+                        [
+                            ft.Text(title, size=13, expand=True),
+                            ft.Text(
+                                subtitle,
+                                size=11,
+                                color=ft.Colors.ON_SURFACE_VARIANT,
+                            ),
+                        ],
+                        expand=True,
+                        spacing=1,
+                    ),
+                    ft.Row([test_btn, open_btn, del_btn], spacing=2),
+                ],
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            )
+            rows.append(item)
+            if index < len(connections) - 1:
+                rows.append(ft.Divider(height=1))
+
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text(f"{self._connections_protocol.upper()} Connections"),
+            content=ft.Column(
+                [hint] + rows if hint else rows,
+                scroll=ft.ScrollMode.AUTO,
+                width=560,
+            ),
+            actions=[
+                ft.TextButton(
+                    "Add",
+                    on_click=self._show_add_connection_dialog,
+                ),
+                ft.TextButton("Close", on_click=lambda _: self.page.pop_dialog()),
+            ],
+        )
+        self.page.show_dialog(dialog)
+        self.page.update()
+
+    def _show_add_connection_dialog(self, e: object = None) -> None:
+        self.page.pop_dialog()
+        self.page.update()
+        protocol = self._connections_protocol
+        protocol_field = ft.Dropdown(
+            label="Protocol",
+            value=protocol,
+            options=[
+                ft.DropdownOption(key="ssh", text="SSH"),
+                ft.DropdownOption(key="ftp", text="FTP"),
+            ],
+            width=140,
+        )
+        host_field = ft.TextField(label="Host", hint_text="example.com")
+        port_field = ft.TextField(label="Port", value="", hint_text="22")
+        username_field = ft.TextField(label="Username")
+        password_field = ft.TextField(
+            label="Password", password=True, can_reveal_password=True
+        )
+        key_field = ft.TextField(
+            label="SSH key path (optional)", hint_text="/home/user/.ssh/id_rsa"
+        )
+        project_name_field = ft.TextField(
+            label="Project name",
+            hint_text="Leave empty to use host",
+            expand=True,
+        )
+        remote_dir_field = ft.TextField(
+            label="Remote economy directory",
+            hint_text="mpmissions/<map_name>",
+            expand=True,
+        )
+
+        async def pick_key(ev: object) -> None:
+            files = await ft.FilePicker().pick_files(
+                dialog_title="Select SSH private key file"
+            )
+            if files:
+                key_field.value = files[0].path
+                key_field.update()
+
+        key_browse_btn = ft.IconButton(
+            icon=ft.Icons.FOLDER_OPEN,
+            on_click=pick_key,
+        )
+
+        async def save(ev: object) -> None:
+            cfg = self._build_connection_form(
+                protocol_field, host_field, port_field, username_field,
+                remote_dir_field, key_field, project_name_field,
+            )
+            self._connection_manager.add(cfg, password_field.value or "")
+            self.page.pop_dialog()
+            self.page.update()
+            self._show_connections_dialog()
+
+        def cancel(ev: object) -> None:
+            self.page.pop_dialog()
+            self.page.update()
+            self._show_connections_dialog()
+
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Add connection"),
+            content=ft.Column(
+                [
+                    ft.Row([protocol_field, host_field], spacing=8),
+                    ft.Row([port_field, username_field], spacing=8),
+                    password_field,
+                    ft.Row([key_field, key_browse_btn], spacing=4),
+                    project_name_field,
+                    remote_dir_field,
+                ],
+                scroll=ft.ScrollMode.AUTO,
+                tight=True,
+                width=520,
+            ),
+            actions=[
+                ft.TextButton("Cancel", on_click=cancel),
+                ft.TextButton("Save", on_click=save),
+            ],
+        )
+        self.page.show_dialog(dialog)
+        self.page.update()
+
+    def _build_connection_form(
+        self,
+        protocol_field: object,
+        host_field: object,
+        port_field: object,
+        username_field: object,
+        remote_dir_field: object,
+        key_field: object,
+        project_name_field: object,
+    ) -> ConnectionConfig:
+        return ConnectionConfig(
+            id="",
+            protocol=str(getattr(protocol_field, "value", "ssh")),
+            host=str(getattr(host_field, "value", "")),
+            port=int(str(getattr(port_field, "value")) or "0"),
+            username=str(getattr(username_field, "value", "")),
+            key_path=str(getattr(key_field, "value", "")),
+            remote_economy_dir=str(getattr(remote_dir_field, "value", "")),
+            project_name=str(getattr(project_name_field, "value", "")),
+        )
+
+    async def _open_remote_project(self, cfg: ConnectionConfig) -> None:
+        remote_dir = cfg.remote_economy_dir
+        if not remote_dir:
+            self._show_error("Set the remote economy directory first.")
+            return
+        local_staging = os.path.join(
+            os.path.expanduser("~"), ".yetee", "workspace", cfg.id
+        )
+        try:
+            await self._remote_sync.sync_to_local(cfg, remote_dir, local_staging)
+        except YeteeError as ex:
+            self._show_error(f"Failed to open remote project: {ex}")
+            return
+        except ValueError as ex:
+            self._show_error(str(ex))
+            return
+        except Exception as ex:  # noqa: BLE001
+            self._show_error(f"Failed to open remote project: {ex}")
+            return
+        self._connection_manager.set_active(cfg.id)
+        types_dir = EconomyService().get_types_dir(local_staging)
+        project = Project(
+            name=cfg.project_name or cfg.host,
+            economy_dir=local_staging,
+            types_dir=types_dir,
+            connection_id=cfg.id,
+            remote_dir=remote_dir,
+        )
+        self._project_service.add_project(project)
+        self.page.pop_dialog()
+        self.page.update()
+        self._open_project(project)
+
+    def _delete_connection(self, cfg: ConnectionConfig) -> None:
+        self._connection_manager.remove(cfg.id)
+        self.page.pop_dialog()
+        self.page.update()
+        self._show_connections_dialog()
+
+    async def _test_connection(self, cfg: ConnectionConfig) -> None:
+        print(f"[diag] _test_connection start: protocol={cfg.protocol} "
+              f"host={cfg.host} port={cfg.port} user={cfg.username} "
+              f"key={cfg.key_path!r} remote_dir={cfg.remote_economy_dir!r}")
+        try:
+            conn = self._connection_manager.create(cfg)
+            print(f"[diag] created connection object: {type(conn).__name__}")
+            print("[diag] calling connect()...")
+            await conn.connect()
+            print("[diag] connect() returned OK")
+            print("[diag] calling disconnect()...")
+            await conn.disconnect()
+            print("[diag] disconnect() returned OK")
+        except YeteeError as ex:
+            print(f"[diag] TEST FAILED (YeteeError): {type(ex).__name__}: {ex}")
+            self._show_message("Connection failed", str(ex))
+            return
+        except Exception as ex:  # noqa: BLE001
+            print(f"[diag] TEST FAILED (Exception): {type(ex).__name__}: {ex!r}")
+            self._show_message("Connection failed", str(ex))
+            return
+        print("[diag] TEST SUCCESS")
+        self._show_message(
+            "Connection OK",
+            f"Connected to {cfg.host}:{cfg.port} over {cfg.protocol.upper()}.",
+        )
+
+    def _show_message(self, title: str, message: str) -> None:
+        dialog = ft.AlertDialog(
+            title=ft.Text(title),
+            content=ft.Text(message),
+            actions=[
+                ft.TextButton("OK", on_click=lambda _: self.page.pop_dialog()),
+            ],
+        )
+        self.page.show_dialog(dialog)
+        self.page.update()
+
+    def _show_error(self, message: str) -> None:
+        dialog = ft.AlertDialog(
+            title=ft.Text("Error"),
+            content=ft.Text(message),
+            actions=[
+                ft.TextButton("OK", on_click=lambda _: self.page.pop_dialog()),
+            ],
+        )
+        self.page.show_dialog(dialog)
+        self.page.update()
 
     async def _save_setting(self, key: str, value: object) -> None:
         try:
@@ -770,6 +1136,8 @@ def main(page: ft.Page) -> None:
         entertainment_service=services["entertainment_service"],
         project_service=services["project_service"],
         economy_editor=services["economy_editor"],
+        connection_manager=services["connection_manager"],
+        remote_sync_service=services["remote_sync_service"],
     )
     page.update()
 

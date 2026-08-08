@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Callable
 
 from lxml import etree as ET
 
@@ -121,6 +122,8 @@ _SPAWN_COL_WIDTHS: dict[str, int] = {
 
 
 class EventDisplay:
+    on_saved: Callable[[], None] | None = None
+
     def __init__(
         self,
         page: ft.Page,
@@ -508,6 +511,8 @@ class EventDisplay:
             self._save_text.color = ft.Colors.GREEN
             self._dirty_state.mark_clean()
             logger.info("Saved events %s", self._events_path)
+            if self.on_saved:
+                self.on_saved()
         except Exception as ex:
             self._save_text.value = f"Save error: {ex}"
             self._save_text.color = ft.Colors.RED
@@ -1126,6 +1131,8 @@ class EventDisplay:
                 self._dirty_state.mark_clean()
             except Exception as ex:
                 logger.error("Auto-save failed for %s: %s", self._events_path, ex)
+            if self.on_saved:
+                self.on_saved()
 
     def clear(self) -> None:
         self._events_path = None
