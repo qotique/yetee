@@ -199,7 +199,6 @@ class FileDisplay:
         self._case_sensitive_checkbox = ft.Checkbox(
             label="Case-sensitive",
             value=False,
-            dense=True,
             on_change=self._on_case_sensitive_changed,
             tooltip="Match search text exactly (case-sensitive)",
         )
@@ -673,11 +672,18 @@ class FileDisplay:
             for idx in sorted(self._selected_row_indices)
         ]
 
+        def _reset_shift(ev: object) -> None:
+            self._shift_pressed = False
+            self._mouse_down = False
+            self._update_fab_icon()
+
         def confirm(ev: object) -> None:
+            _reset_shift(ev)
             self._page.pop_dialog()
             self._perform_delete()
 
         def cancel(ev: object) -> None:
+            _reset_shift(ev)
             self._page.pop_dialog()
 
         if len(names) == 1:
