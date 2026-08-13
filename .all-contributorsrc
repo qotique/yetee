@@ -13,7 +13,7 @@
   "contributorsPerLine": 7,
   "contributorsSortAlphabetically": false,
   "badgeTemplate": "[![All Contributors](https://img.shields.io/github/all-contributors/qotique/yetee?color=ee8449&style=flat-square)](#contributors)",
-  "contributorTemplate": "<a href=\"<%= contributor.profile %>\"><img src=\"<%= contributor.avatar_url %>\" width=\"<%= options.imageSize %>px;\" alt=\"\"/><br /><sub><b><%= contributor.name %></b></sub></a>",
+  "contributorTemplate": "<a href=\"<%= contributor.profile %>\"><img src=\"<%= contributor.avatar_url %>\" width=\"<%= options.imageSize %>px;\" alt=\"\"/><br /><sub><b><%= contributor.name %></b></sub></a><br /><%= contributions %>",
   "wrapperTemplate": "\n<table>\n  <tbody><%= bodyContent %>  </tbody>\n<%= tableFooterContent %></table>\n\n",
   "types": {
     "custom": {
@@ -22,7 +22,7 @@
       "link": "[<%= symbol %>](<%= url %> \"<%= description %>\"),"
     }
   },
-  "linkToUsage": true,
+  "linkToUsage": false,
   "skipCi": true,
   "commitType": "docs",
   "contributors": [
@@ -35,6 +35,7 @@
         "doc"
       ]
     },
+    {
       "login": "0xwi11iam",
       "name": "William Jiang",
       "avatar_url": "https://avatars.githubusercontent.com/u/209588302?v=4",
