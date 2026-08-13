@@ -17,13 +17,20 @@ class SearchController:
         self._category_filter: str = ""
         self._usage_filter: str = ""
         self._value_filter: str = ""
+        self._case_sensitive: bool = False
 
     @property
     def query(self) -> str:
         return self._search_query
 
-    def set_search(self, value: str) -> None:
-        self._search_query = (value or "").strip().lower()
+    @property
+    def case_sensitive(self) -> bool:
+        return self._case_sensitive
+
+    def set_search(self, value: str, case_sensitive: bool = False) -> None:
+        self._case_sensitive = bool(case_sensitive)
+        query = (value or "").strip()
+        self._search_query = query if self._case_sensitive else query.lower()
 
     def set_filters(
         self,
@@ -34,6 +41,9 @@ class SearchController:
         self._category_filter = (category or "").strip().lower()
         self._usage_filter = (usage or "").strip().lower()
         self._value_filter = (value or "").strip().lower()
+
+    def _normalize(self, text: str) -> str:
+        return text if self._case_sensitive else text.lower()
 
     def filter_rows(self, rows: list[RowData]) -> list[int]:
         search_parts = (
@@ -62,7 +72,10 @@ class SearchController:
             for i, row in enumerate(rows)
             if (
                 not search_parts
-                or any(p in row.values.get("name", "").lower() for p in search_parts)
+                or any(
+                    p in self._normalize(row.values.get("name", ""))
+                    for p in search_parts
+                )
             )
             and (
                 not cat_parts
