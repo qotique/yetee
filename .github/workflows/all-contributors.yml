@@ -1,0 +1,46 @@
+name: All Contributors
+
+on:
+  workflow_dispatch:
+    inputs:
+      contributor:
+        description: GitHub username of the contributor
+        required: true
+      types:
+        description: Comma-separated contribution types (code, doc, design, test, ...)
+        required: false
+        default: code
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  add-contributor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Add contributor
+        run: |
+          npx --yes all-contributors-cli add "$CONTRIBUTOR" "$TYPES"
+          npx --yes all-contributors-cli generate
+        env:
+          CONTRIBUTOR: ${{ github.event.inputs.contributor }}
+          TYPES: ${{ github.event.inputs.types }}
+          GITHUB_AUTH: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: all-contributors/${{ github.event.inputs.contributor }}
+          base: main
+          title: 'docs: add @${{ github.event.inputs.contributor }} as a contributor'
+          commit-message: 'docs: add @${{ github.event.inputs.contributor }} as a contributor'
+          body: |
+            Thanks, @${{ github.event.inputs.contributor }}!
+            Adding your contribution (${{ github.event.inputs.types }}).
