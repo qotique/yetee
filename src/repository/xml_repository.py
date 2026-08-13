@@ -90,11 +90,11 @@ class XmlRepository:
             set_elem_text(elem, "quantmax", row_data.values.get("quantmax", ""))
             set_elem_text(elem, "cost", row_data.values.get("cost", ""))
             self._update_flags(elem, row_data.flags)
-            self._update_single_named(
+            self._update_named_elements(
                 elem, "category", row_data.values.get("category", "")
             )
-            self._update_multi_named(elem, "usage", row_data.values.get("usage", ""))
-            self._update_multi_named(elem, "value", row_data.values.get("value", ""))
+            self._update_named_elements(elem, "usage", row_data.values.get("usage", ""))
+            self._update_named_elements(elem, "value", row_data.values.get("value", ""))
 
         try:
             ET.indent(tree, space="\t")
@@ -149,22 +149,25 @@ class XmlRepository:
         f.attrib.clear()
         f.attrib.update(flags)
 
-    def _update_single_named(self, parent: ET.Element, tag: str, name: str) -> None:
+    def _update_named_elements(self, parent: ET.Element, tag: str, names: str, multi: bool = False
+    ) -> None:
+        if multi:
+            for elem in parent.findall(tag):
+                parent.remove(elem)
+
+            for part in names.split(";"):
+                part = part.strip()
+                if part:
+                    ET.SubElement(parent, tag).set("name", part)
+        return
+
         elems = parent.findall(tag)
         existing = elems[0] if elems else None
-        if name.strip():
-            if existing is not None:
-                existing.set("name", name.strip())
-            else:
-                ET.SubElement(parent, tag).set("name", name.strip())
-        else:
-            if existing is not None:
-                parent.remove(existing)
 
-    def _update_multi_named(self, parent: ET.Element, tag: str, s: str) -> None:
-        for elem in parent.findall(tag):
-            parent.remove(elem)
-        for part in s.split(","):
-            part = part.strip()
-            if part:
-                ET.SubElement(parent, tag).set("name", part)
+        if names.strip():
+            if existing is not None:
+                existing.set("name", names.strip())
+            else:
+                ET.SubElement(parent, tag).set("name", names.strip())
+        elif existing is not None:
+            parent.remove(existing)

@@ -196,6 +196,13 @@ class FileDisplay:
             on_change=self._on_search_changed,
             autofocus=True,
         )
+        self._case_sensitive_checkbox = ft.Checkbox(
+            label="Case-sensitive",
+            value=False,
+            dense=True,
+            on_change=self._on_case_sensitive_changed,
+            tooltip="Match search text exactly (case-sensitive)",
+        )
         self._category_filter_values: list[str] = []
         menu_bar_style = ft.MenuStyle(
             fixed_size=ft.Size.from_height(32),
@@ -353,6 +360,7 @@ class FileDisplay:
                             self._page_info,
                             self._next_btn,
                             self._search_field,
+                            self._case_sensitive_checkbox,
                             ft.Divider(),
                             self._category_filter_menu,
                             self._usage_filter_menu,
@@ -976,7 +984,10 @@ class FileDisplay:
         self.control.update()
 
     def _apply_filter(self, query: str) -> None:
-        self._search.set_search(query)
+        self._search.set_search(
+            query,
+            case_sensitive=self._case_sensitive_checkbox.value,
+        )
         self._search.set_filters(
             category="|".join(self._category_filter_values),
             usage="|".join(self._usage_filter_values),
@@ -987,7 +998,7 @@ class FileDisplay:
     def _on_search(self, e: object) -> None:
         self._sync_detail_panel()
         self._sync_page_back()
-        query = (self._search_field.value or "").strip().lower()
+        query = (self._search_field.value or "").strip()
         self._apply_filter(query)
         self._pagination.reset()
         self._render_page()
@@ -997,6 +1008,9 @@ class FileDisplay:
         if self._search_task is not None and not self._search_task.done():
             self._search_task.cancel()
         self._search_task = self._page.run_task(self._debounced_search)
+
+    def _on_case_sensitive_changed(self, e: object) -> None:
+        self._on_search(None)
 
     def _on_filter_changed(self, e: object) -> None:
         if self._search_task is not None and not self._search_task.done():
