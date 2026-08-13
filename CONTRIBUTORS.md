@@ -5,24 +5,18 @@ Thanks goes to these wonderful people:
 <!-- ALL-CONTRIBUTORS-LIST:START -->
 <!-- prettier-ignore-start -->
 <!-- markdownlint-disable -->
+
 <table>
   <tbody>
     <tr>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/breezeFur"><img src="https://avatars.githubusercontent.com/u/163396746?v=4" width="100px;" alt=""/><br /><sub><b>breezeFur</b></sub></a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/0xwi11iam"><img src="https://avatars.githubusercontent.com/u/209588302?v=4" width="100px;" alt=""/><br /><sub><b>William Jiang</b></sub></a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Harshit15-coder"><img src="https://avatars.githubusercontent.com/u/77881125?v=4" width="100px;" alt=""/><br /><sub><b>Harshit Chaturvedi</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/breezeFur"><img src="https://avatars.githubusercontent.com/u/163396746?v=4" width="100px;" alt=""/><br /><sub><b>breezeFur</b></sub></a><br /><a href="https://github.com/qotique/yetee/commits?author=breezeFur" title="Documentation">📖</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/0xwi11iam"><img src="https://avatars.githubusercontent.com/u/209588302?v=4" width="100px;" alt=""/><br /><sub><b>William Jiang</b></sub></a><br /><a href="https://github.com/qotique/yetee/commits?author=0xwi11iam" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Harshit15-coder"><img src="https://avatars.githubusercontent.com/u/77881125?v=4" width="100px;" alt=""/><br /><sub><b>Harshit Chaturvedi</b></sub></a><br /><a href="https://github.com/qotique/yetee/commits?author=Harshit15-coder" title="Code">💻</a></td>
     </tr>
   </tbody>
-  <tfoot>
-    <tr>
-      <td align="center" size="13px" colspan="7">
-        <img src="https://raw.githubusercontent.com/all-contributors/all-contributors-cli/1b8533af435da9854653492b1327a23a4dbd0a10/assets/logo-small.svg">
-          <a href="https://all-contributors.js.org/docs/en/bot/usage">Add your contributions</a>
-        </img>
-      </td>
-    </tr>
-  </tfoot>
 </table>
+
+
 
 <!-- markdownlint-restore -->
 <!-- prettier-ignore-end -->
