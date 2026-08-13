@@ -21,6 +21,18 @@ DEFAULT_FLAG_NAMES = [
     "deloot",
 ]
 
+FIELD_TIPS = {
+    "name": "The item type name used in the XML file",
+    "nominal": "The global target quantity the economy maintains across the map",
+    "lifetime": "How long items persist before despawning (seconds)",
+    "restock": "The interval between economy replenishment checks (seconds)",
+    "min": "The absolute minimum quantity that must exist in the economy",
+    "quantmin": "Minimum spawn count per loot position or container",
+    "quantmax": "Maximum spawn count per loot position or container",
+    "cost": "Spawn priority; lower values increase spawn priority",
+    "category": "Classifies items for loot table filtering",
+}
+
 
 def _collect_flag_names(rows: list[RowData]) -> list[str]:
     seen: set[str] = set(DEFAULT_FLAG_NAMES)
@@ -128,6 +140,7 @@ class TableController:
                 height=36,
                 alignment=cell_align,
                 padding=ft.Padding(left=12, right=12, top=0, bottom=0),
+                tooltip=FIELD_TIPS.get(fd.key, f"{fd.label} field"),
             )
             header_cells.append(hc)
         self._header_row.controls = header_cells
@@ -180,6 +193,7 @@ class TableController:
                         expand=True,
                     )
                 w.data = fd.key
+                w.tooltip = FIELD_TIPS.get(fd.key, f"{fd.label} field")
                 fields.append(w)
 
                 if fd.is_flag():
