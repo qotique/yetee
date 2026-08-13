@@ -25,6 +25,8 @@ flowchart TB
         ee["EconomyEditor (src/ui/economy_editor.py)"]
         fd["FileDisplay (src/file_display.py)"]
         evd["EventDisplay (src/event_display.py)"]
+        std["SettingsTableDisplay (src/settings_table_display.py)"]
+        uav["UnavailableDisplay (src/unavailable_display.py)"]
         dp["DetailPanel ✓ ui/detail_panel.py"]
         bp["BatchPanel ✓ ui/batch_panel.py"]
         cs["ChipSet ✓ ui/chip_set.py"]
@@ -42,6 +44,8 @@ flowchart TB
         xmlr["XmlRepository"]
         evr["EventRepository"]
         cache["FileCache"]
+        sxmlr["XmlSettingsRepository"]
+        sjsonr["JsonSettingsRepository"]
     end
 
     subgraph services["Services"]
@@ -51,6 +55,13 @@ flowchart TB
         stg["SettingsService"]
         upd["UpdateService"]
         ent["EntertainmentService"]
+        prof["ProfileService"]
+        pload["ProfilePreloadService (src/services/profile_preload_service.py)"]
+    end
+
+    subgraph schema["Schema (code module)"]
+        cent["src/custom_entities.py"]
+        modh["src/mod_handlers.py (NotYetAvailableMod registry)"]
     end
 
     subgraph models["Models"]
@@ -79,13 +90,22 @@ flowchart TB
     di -->|"creates"| cm
     di -->|"creates"| rss
     di -->|"creates"| ee
+    di -->|"creates"| prof
     di -->|"creates (shared cache)"| fd
     di -->|"creates (shared cache)"| evd
+    di -->|"creates"| std
+    di -->|"creates"| uav
 
     App._main -->|"swaps tabs"| ee
     ee -->|"load_project/unload"| fd
     ee -->|"load_project/unload"| evd
+    ee -->|"load_project/custom entities"| std
+    ee -->|"unavailable entities"| uav
     ee -->|"config_service"| cfg
+
+    main -->|"preload dialog + progress"| pload
+    main -->|"preload_cached"| std
+    pload -->|"estimate/should_confirm"| std
 
     fd -->|"xml_repo (IXmlRepository)"| xmlr
     fd -->|"cache (ICache)"| cache
@@ -103,10 +123,18 @@ flowchart TB
     evd -->|"TableController"| tc
     evd -->|"UndoManager"| undo
 
+    std -->|"XmlSettingsRepository"| sxmlr
+    std -->|"JsonSettingsRepository"| sjsonr
+    std -->|"TableController"| tc
+    std -->|"get_renderer/get_columns"| cent
+    uav -->|"is_not_yet_available/get_mod_handler"| modh
+
     xmlr -->|"cache"| cache
     xmlr -->|"rows: RowData"| row
     evr -->|"cache"| cache
     evr -->|"rows: RowData"| row
+    sxmlr -->|"RowData"| row
+    sjsonr -->|"RowData"| row
 
     tc -->|"FieldDef/RowData"| models
     bp --> tc
@@ -114,6 +142,8 @@ flowchart TB
     prj -->|"Project[]"| proj
     cfg -->|"ce: cfgeconomycore.xml"| xmlr
     econ -->|"types_dir/file list"| proj
+    prof -->|"scan_profiles(profiles_dir)"| proj
+    ee -->|"profile_service (IProfileService)"| prof
 
     cm -->|"IRemoteConnection"| factory
     factory --> ssh

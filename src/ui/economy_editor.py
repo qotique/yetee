@@ -2,14 +2,20 @@ from __future__ import annotations
 
 from collections.abc import Callable
 import logging
+from typing import TypeAlias
 
 import flet as ft
 
 from event_display import EventDisplay
 from file_display import FileDisplay
 from models.project import Project
+from mod_handlers import is_not_yet_available
+from custom_entities import is_registered_entity
+from settings_table_display import SettingsTableDisplay
 from services.config_service import ConfigService
 from services.economy_service import EconomyService
+from protocols import IProfileService
+from unavailable_display import UnavailableDisplay
 
 logger = logging.getLogger(__name__)
 
@@ -24,13 +30,17 @@ ENTITY_LABELS: dict[str, str] = {
 TYPES_ENTITY = "Types"
 ADD_TAB_LABEL = "+"
 
+DisplayWidget: TypeAlias = (
+    FileDisplay | EventDisplay | SettingsTableDisplay | UnavailableDisplay
+)
+
 
 class _EntityConfig:
     __slots__ = ("display", "show_tabs", "show_add_tab", "schedule_load")
 
     def __init__(
         self,
-        display: FileDisplay | EventDisplay,
+        display: DisplayWidget,
         show_tabs: bool = True,
         show_add_tab: bool = False,
         schedule_load: Callable[[], None] | None = None,
@@ -52,9 +62,13 @@ class EconomyEditor:
         file_display: FileDisplay,
         event_display: EventDisplay,
         config_service: ConfigService | None = None,
+        profile_service: IProfileService | None = None,
+        settings_display: SettingsTableDisplay | None = None,
+        unavailable_display: UnavailableDisplay | None = None,
     ):
         self._page = page
         self._config_service: ConfigService | None = config_service
+        self._profile_service: IProfileService | None = profile_service
 
         self._project: Project | None = None
         self._entities: dict[str, dict[str, str]] = {}
@@ -64,6 +78,8 @@ class EconomyEditor:
 
         self._file_display = file_display
         self._event_display = event_display
+        self._settings_display = settings_display
+        self._unavailable_display = unavailable_display
 
         self._content_slot = ft.Container(
             expand=True, content=self._file_display.control
@@ -98,10 +114,37 @@ class EconomyEditor:
             ),
         }
 
+        if self._settings_display is not None:
+            self._settings_entity_config: _EntityConfig | None = _EntityConfig(
+                display=self._settings_display,
+                show_tabs=True,
+                schedule_load=self._schedule_settings_load,
+            )
+        else:
+            self._settings_entity_config = None
+
+        if self._unavailable_display is not None:
+            self._unavailable_entity_config: _EntityConfig | None = _EntityConfig(
+                display=self._unavailable_display,
+                show_tabs=False,
+                schedule_load=None,
+            )
+        else:
+            self._unavailable_entity_config = None
+
+        self._default_entity_config = self._settings_entity_config or _EntityConfig(
+            display=self._file_display,
+            show_tabs=True,
+            schedule_load=self._schedule_load,
+        )
+
         self._load_seq: int = 0
         self._tabs: ft.Tabs | None = None
         self._events_file_path: str | None = None
         self._spawns_file_path: str | None = None
+        self._user_configured_entities: set[str] = set()
+        self._show_unhandled_editors: bool = False
+        self._profile_managed: set[str] = set()
 
         self._empty_title = ft.Text(
             "Open a project to start editing", size=16, italic=True
@@ -160,6 +203,14 @@ class EconomyEditor:
                 label = _get_label(fname)
                 self._entities[entity] = {label: fpath}
 
+        for name, files in project.custom_entities.items():
+            if files and name not in self._entities:
+                self._entities[name] = files
+        self._user_configured_entities = set(project.custom_entities)
+
+        if project.profiles_dir and self._profile_service is not None:
+            self._reload_profile_entities()
+
         self._events_file_path = known_files.get("events.xml")
         self._spawns_file_path = economy_dir_files.get("cfgeventspawns.xml")
 
@@ -180,10 +231,15 @@ class EconomyEditor:
         self._load_seq += 1
         self._file_display.clear()
         self._event_display.clear()
+        if self._settings_display is not None:
+            self._settings_display.clear()
+        if self._unavailable_display is not None:
+            self._unavailable_display.clear()
         self._project = None
         self._entities = {}
         self._current_entity = None
         self._current_file = None
+        self._profile_managed = set()
         self._events_file_path = None
         self._spawns_file_path = None
         self._clear_tabs()
@@ -198,19 +254,26 @@ class EconomyEditor:
         except RuntimeError:
             pass
 
-    def switch_entity(self, entity: str) -> None:
-        if entity == self._current_entity or entity not in self._entities:
+    def switch_entity(self, entity: str, *, force: bool = False) -> None:
+        if (entity == self._current_entity and not force) or entity not in self._entities:
             return
         self._file_display.save_file()
         self._file_display.clear()
         self._event_display.clear()
+        if self._settings_display is not None:
+            self._settings_display.save_file()
+            self._settings_display.clear()
         self._clear_tabs()
         files = self._entities[entity]
         file_labels = list(files.keys())
         self._current_entity = entity
 
-        config = self._entity_configs[entity]
+        config = self._config_for(entity)
         display = config.display
+        if display is self._settings_display:
+            self._settings_display.set_entity(entity)
+        elif self._unavailable_display is not None and display is self._unavailable_display:
+            self._unavailable_display.set_entity(entity)
 
         self._content_slot.content = display.control
         if config.show_tabs:
@@ -237,25 +300,32 @@ class EconomyEditor:
             logger.info("SWITCH skip %s (current=%s)", label, self._current_file)
             return
         logger.info("SWITCH %s -> %s", self._current_file, label)
+        config = self._config_for(self._current_entity)
         self._file_display.save_file()
         self._file_display.clear()
+        self._event_display.clear()
+        if self._settings_display is not None:
+            self._settings_display.save_file()
+            self._settings_display.clear()
         self._current_file = label
         try:
             self.control.update()
         except RuntimeError:
             pass
-        self._schedule_load()
+        if config.schedule_load is not None:
+            config.schedule_load()
 
     def save_file(self) -> None:
         self._file_display.save_file()
         self._event_display.save_file()
+        if self._settings_display is not None:
+            self._settings_display.save_file()
 
     def save_current(self, e: object = None) -> None:
         if self._current_entity is None:
             return
-        config = self._entity_configs.get(self._current_entity)
-        if config is not None:
-            config.display.save_current(e)
+        config = self._config_for(self._current_entity)
+        config.display.save_current(e)
 
     @property
     def project(self) -> Project | None:
@@ -268,6 +338,10 @@ class EconomyEditor:
     @property
     def event_display(self) -> EventDisplay:
         return self._event_display
+
+    @property
+    def settings_display(self) -> SettingsTableDisplay | None:
+        return self._settings_display
 
     @property
     def available_entities(self) -> list[str]:
@@ -301,6 +375,55 @@ class EconomyEditor:
                 return files[label]
         return None
 
+    def _config_for(self, entity: str) -> _EntityConfig:
+        if is_not_yet_available(entity) and self._unavailable_entity_config is not None:
+            return self._unavailable_entity_config
+        if entity in self._entity_configs:
+            return self._entity_configs[entity]
+        if self._unhandled_is_unavailable(entity):
+            assert self._unavailable_entity_config is not None
+            return self._unavailable_entity_config
+        return self._default_entity_config
+
+    def _unhandled_is_unavailable(self, entity: str) -> bool:
+        return (
+            not self._show_unhandled_editors
+            and self._unavailable_entity_config is not None
+            and entity not in self._user_configured_entities
+            and not is_registered_entity(entity)
+        )
+
+    def is_editable_entity(self, entity: str) -> bool:
+        config = self._config_for(entity)
+        return config.display is not self._unavailable_display
+
+    def set_show_unhandled_editors(self, enabled: bool) -> None:
+        if self._show_unhandled_editors == enabled:
+            return
+        self._show_unhandled_editors = enabled
+        if self._project is not None:
+            if self._project.profiles_dir:
+                self._reload_profile_entities()
+            if self._current_entity is not None:
+                self.switch_entity(self._current_entity, force=True)
+
+    def _reload_profile_entities(self) -> None:
+        if self._profile_service is None or self._project is None:
+            return
+        scanned = self._profile_service.scan_profiles(self._project.profiles_dir)
+        managed: set[str] = set()
+        for name, files in scanned.items():
+            if name in self._user_configured_entities:
+                continue
+            if is_not_yet_available(name) or self._unhandled_is_unavailable(name):
+                self._entities[name] = {}
+                managed.add(name)
+                continue
+            if files:
+                self._entities[name] = files
+                managed.add(name)
+        self._profile_managed = managed
+
     def _schedule_load(self) -> None:
         self._load_seq += 1
         seq = self._load_seq
@@ -316,6 +439,15 @@ class EconomyEditor:
         logger.info("SCHEDULE_EVENT seq=%d", seq)
         try:
             self._page.run_task(self._load_events_async, seq)
+        except RuntimeError:
+            pass
+
+    def _schedule_settings_load(self) -> None:
+        self._load_seq += 1
+        seq = self._load_seq
+        logger.info("SCHEDULE_SETTINGS seq=%d file=%s", seq, self._current_file)
+        try:
+            self._page.run_task(self._load_current_file_async, seq)
         except RuntimeError:
             pass
 
@@ -345,11 +477,19 @@ class EconomyEditor:
         if files is None or self._current_file not in files:
             return
         path = files[self._current_file]
+        config = self._config_for(self._current_entity)
+        display = config.display
         logger.info("LOADING seq=%d file=%s path=%s", seq, self._current_file, path)
         try:
-            await self._file_display.load_file_async(
-                path, cancel_check=lambda: seq != self._load_seq
-            )
+            if display is self._settings_display and self._settings_display is not None:
+                self._settings_display.set_entity(self._current_entity)
+                await self._settings_display.load_file_async(
+                    path, cancel_check=lambda: seq != self._load_seq
+                )
+            else:
+                await self._file_display.load_file_async(
+                    path, cancel_check=lambda: seq != self._load_seq
+                )
         except RuntimeError:
             pass
         logger.info("DONE seq=%d file=%s", seq, self._current_file)

@@ -120,6 +120,13 @@ class TableController:
             )
         )
 
+        self._build_pool()
+
+    def init_table(self, field_defs: list[FieldDef]) -> None:
+        self._field_defs = list(field_defs)
+        self._build_pool()
+
+    def _build_pool(self) -> None:
         self._col_widths = [fd.width for fd in self._field_defs]
         table_width = sum(self._col_widths) + (len(self._field_defs) - 1) * 6
 

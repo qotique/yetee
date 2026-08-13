@@ -72,6 +72,11 @@ class IEconomyService(Protocol):
 
 
 @runtime_checkable
+class IProfileService(Protocol):
+    def scan_profiles(self, profiles_dir: str) -> dict[str, dict[str, str]]: ...
+
+
+@runtime_checkable
 class IDetailPanel(Protocol):
     def show(
         self, row: RowData, usage_options: list[str], value_options: list[str]

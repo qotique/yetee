@@ -32,6 +32,7 @@ class SettingsService:
             "cat_mode",
             "terminal_mode",
             "funny_enabled",
+            "show_unhandled_mod_editors",
             "achievements",
         ]
         try:
