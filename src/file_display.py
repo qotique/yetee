@@ -660,6 +660,44 @@ class FileDisplay:
         if not self._selected_row_indices:
             return
 
+        names = [
+            self._rows[idx].values.get("name", "") or "(unnamed)"
+            for idx in sorted(self._selected_row_indices)
+        ]
+
+        def confirm(ev: object) -> None:
+            self._page.pop_dialog()
+            self._perform_delete()
+
+        def cancel(ev: object) -> None:
+            self._page.pop_dialog()
+
+        if len(names) == 1:
+            title = "Delete Type"
+            message = f'Delete type "{names[0]}"?'
+        else:
+            title = "Delete Types"
+            shown = ", ".join(f'"{n}"' for n in names[:3])
+            if len(names) > 3:
+                shown += f" and {len(names) - 3} more"
+            message = f"Delete {len(names)} types?\n{shown}"
+
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text(title),
+            content=ft.Text(message),
+            actions=[
+                ft.TextButton("Cancel", on_click=cancel),
+                ft.TextButton("Delete", on_click=confirm),
+            ],
+        )
+        self._page.show_dialog(dialog)
+        self._page.update()
+
+    def _perform_delete(self) -> None:
+        if not self._selected_row_indices:
+            return
+
         self._sync_detail_panel()
         self._sync_page_back()
 
