@@ -19,6 +19,7 @@ Editor for DayZ `cfgeconomycore.xml` type files. Built with Python and [Flet](ht
 - **Delete type files** — removes from config and disk
 - **Batch update** — edit multiple types in one file at once
 - **Pagination & search** for large type lists (supports `|` for OR queries, e.g. `AK101|AK74`)
+- **Remote projects over SSH or FTP** — downloads server files for editing and automatically uploads saved changes
 - **Cross-platform** — native desktop builds for Windows and Linux
 
 ## Возможности
@@ -30,6 +31,7 @@ Editor for DayZ `cfgeconomycore.xml` type files. Built with Python and [Flet](ht
 - **Удаление файлов** — удаление из конфига и с диска
 - **Пакетное обновление** — редактирование нескольких типов в одном файле сразу
 - **Пагинация и поиск** по большим спискам типов (поддержка `|` для OR запросов, например `AK101|AK74`)
+- **Удалённые проекты по SSH или FTP** — скачивание файлов сервера для редактирования и автоматическая загрузка сохранённых изменений
 - **Кроссплатформенность** — нативные сборки для Windows и Linux
 
 ## Use Cases / Сценарии использования
@@ -72,7 +74,7 @@ Point the editor to the economy directory (`mpmissions/<map_name>/`). The editor
 
 ### From Releases (Recommended)
 
-Download the latest binary for your OS from the [Releases](https://github.com/qotique/TypesEditor/releases) page:
+Download the latest binary for your OS from the [Releases](https://github.com/qotique/yetee/releases) page:
 
 - **Linux**: `types_editor_linux`
 - **Windows**: `types_editor_windows.exe`
@@ -96,7 +98,7 @@ uv run flet run
 
 ### Из релизов (Рекомендуется)
 
-Скачайте готовый бинарник для вашей ОС со страницы [Releases](https://github.com/qotique/TypesEditor/releases):
+Скачайте готовый бинарник для вашей ОС со страницы [Releases](https://github.com/qotique/yetee/releases):
 
 - **Linux**: `types_editor_linux`
 - **Windows**: `types_editor_windows.exe`
@@ -208,5 +210,3 @@ Thanks goes to these wonderful people (Контрибьюторы):
 
 <!-- markdownlint-restore -->
 <!-- prettier-ignore-end -->
-
-<!-- ALL-CONTRIBUTORS-LIST:END -->
