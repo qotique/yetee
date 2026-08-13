@@ -9,6 +9,7 @@ Thanks goes to these wonderful people:
   <tbody>
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/breezeFur"><img src="https://avatars.githubusercontent.com/u/163396746?v=4" width="100px;" alt=""/><br /><sub><b>breezeFur</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/0xwi11iam"><img src="https://avatars.githubusercontent.com/u/209588302?v=4" width="100px;" alt=""/><br /><sub><b>William Jiang</b></sub></a></td>
     </tr>
   </tbody>
   <tfoot>
