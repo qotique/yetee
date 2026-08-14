@@ -4,13 +4,27 @@ on:
   push:
     branches: [main, packaging]
     tags: ['*']
+  pull_request:
+    branches: [main]
   workflow_dispatch:
+    inputs:
+      repository:
+        description: 'Owner/repo to check out (e.g. owner/repo or a fork)'
+        required: true
+        type: string
+      ref:
+        description: 'Ref (branch, tag or SHA) to check out'
+        required: true
+        type: string
 
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.repository || github.repository }}
+          ref: ${{ inputs.ref }}
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -23,9 +37,13 @@ jobs:
 
   build-linux:
     needs: test
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.repository || github.repository }}
+          ref: ${{ inputs.ref }}
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -60,9 +78,13 @@ jobs:
 
   build-windows:
     needs: test
+    if: github.event_name != 'pull_request'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.repository || github.repository }}
+          ref: ${{ inputs.ref }}
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
