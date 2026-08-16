@@ -10,7 +10,7 @@ import flet as ft
 from controllers.table_controller import PAGE_SIZE, TableController
 from custom_entities import get_columns, get_renderer
 from exceptions import AccessError, ParseError
-from models.field_def import FieldDef, FieldType
+from models.field_def import FieldDef
 from models.row_data import RowData
 from repository.settings_repository import JsonSettingsRepository, XmlSettingsRepository
 
@@ -107,7 +107,9 @@ class SettingsTableDisplay:
 
         self._status = ft.Text("", size=12, selectable=True)
         self._page_info = ft.Text("", size=12)
-        self._save_btn = ft.Button("Save", icon=ft.Icons.SAVE, on_click=self.save_current)
+        self._save_btn = ft.Button(
+            "Save", icon=ft.Icons.SAVE, on_click=self.save_current
+        )
         self._undo_btn = ft.IconButton(icon=ft.Icons.UNDO, on_click=self._on_undo)
         self._redo_btn = ft.IconButton(icon=ft.Icons.REDO, on_click=self._on_redo)
         self._prev_btn = ft.Button("Prev", on_click=self._prev_page)
@@ -185,7 +187,8 @@ class SettingsTableDisplay:
         if cached is not None:
             return cached
         if renderer == RENDERER_JSON:
-            result = self._json_repo.parse_file(path)
+            declared = get_columns(self._entity, path)
+            result = self._json_repo.parse_file(path, declared or None)
         else:
             result = self._xml_repo.parse_file(path)
         self._parsed_cache[path] = result
@@ -220,9 +223,15 @@ class SettingsTableDisplay:
                 )
             if on_progress:
                 on_progress(done, len(paths))
+
     def _apply_table_file(self, defs: list[FieldDef], rows: list[RowData]) -> None:
-        declared = get_columns(self._entity, self._path or "")
-        self._field_defs = list(declared) if declared else (defs or [])
+        declared = list(get_columns(self._entity, self._path or ""))
+        if declared:
+            declared_keys = {fd.key for fd in declared}
+            extras = [fd for fd in (defs or []) if fd.key not in declared_keys]
+            self._field_defs = declared + extras
+        else:
+            self._field_defs = defs or []
         self._rows = rows
         self._page_idx = 0
         self._dirty = False

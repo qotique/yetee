@@ -3,8 +3,7 @@ from __future__ import annotations
 from custom_entities import RENDERER_TXT
 
 DEFAULT_MESSAGE = (
-    "Editing for this mod is not available yet. "
-    "Planned in a future version."
+    "Editing for this mod is not available yet. Planned in a future version."
 )
 
 
@@ -38,7 +37,8 @@ class AS_Mods(NotYetAvailableMod):
 
 
 _HANDLERS: dict[str, NotYetAvailableMod] = {
-    handler.name: handler() for handler in (
+    handler.name: handler()
+    for handler in (
         TraderX,
         CommunityOnlineTools,
         PermissionsFramework,

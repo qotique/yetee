@@ -92,8 +92,8 @@ class TestXmlSettingsRepository:
             "<root>"
             "<!-- a comment -->"
             "<?processing data?>"
-            "<item name=\"a\">1</item>"
-            "<item name=\"b\">2</item>"
+            '<item name="a">1</item>'
+            '<item name="b">2</item>'
             "</root>",
             encoding="utf-8",
         )

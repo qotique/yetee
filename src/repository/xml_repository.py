@@ -149,7 +149,8 @@ class XmlRepository:
         f.attrib.clear()
         f.attrib.update(flags)
 
-    def _update_named_elements(self, parent: ET.Element, tag: str, names: str, multi: bool = False
+    def _update_named_elements(
+        self, parent: ET.Element, tag: str, names: str, multi: bool = False
     ) -> None:
         if multi:
             for elem in parent.findall(tag):

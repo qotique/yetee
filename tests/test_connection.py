@@ -30,7 +30,9 @@ def test_round_trip_default_project_name():
 
 
 def test_from_dict_defaults():
-    config = ConnectionConfig.from_dict({"id": "x", "protocol": "ftp", "host": "h", "username": "u"})
+    config = ConnectionConfig.from_dict(
+        {"id": "x", "protocol": "ftp", "host": "h", "username": "u"}
+    )
     assert config.port == 0
     assert config.key_path == ""
     assert config.remote_economy_dir == ""

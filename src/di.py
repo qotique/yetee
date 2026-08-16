@@ -10,6 +10,7 @@ from controllers.search_controller import SearchController
 from controllers.table_controller import TableController
 from event_display import EventDisplay
 from file_display import FileDisplay
+from form_display import FormDisplay
 from repository.connection_repository import ConnectionRepository
 from repository.event_repository import EventRepository
 from repository.file_cache import FileCache
@@ -121,7 +122,9 @@ def create_profile_service() -> ProfileService:
     return ProfileService()
 
 
-def create_settings_repository() -> tuple[XmlSettingsRepository, JsonSettingsRepository]:
+def create_settings_repository() -> tuple[
+    XmlSettingsRepository, JsonSettingsRepository
+]:
     return XmlSettingsRepository(), JsonSettingsRepository()
 
 
@@ -139,6 +142,14 @@ def create_settings_table_display(
     )
 
 
+def create_form_display(
+    page: ft.Page,
+    json_repo: JsonSettingsRepository | None = None,
+) -> FormDisplay:
+    json_repo = json_repo or JsonSettingsRepository()
+    return FormDisplay(page=page, json_repo=json_repo)
+
+
 def create_unavailable_display(page: ft.Page) -> UnavailableDisplay:
     return UnavailableDisplay(page=page)
 
@@ -152,6 +163,7 @@ def create_economy_editor(
     event_display: EventDisplay | None = None,
     profile_service: ProfileService | None = None,
     settings_display: SettingsTableDisplay | None = None,
+    form_display: FormDisplay | None = None,
     unavailable_display: UnavailableDisplay | None = None,
 ) -> EconomyEditor:
     cache = cache or create_file_cache()
@@ -166,6 +178,7 @@ def create_economy_editor(
         entertainment_service=entertainment_service,
     )
     settings_display = settings_display or create_settings_table_display(page)
+    form_display = form_display or create_form_display(page)
     unavailable_display = unavailable_display or create_unavailable_display(page)
     return EconomyEditor(
         page=page,
@@ -174,6 +187,7 @@ def create_economy_editor(
         config_service=config_service,
         profile_service=profile_service or create_profile_service(),
         settings_display=settings_display,
+        form_display=form_display,
         unavailable_display=unavailable_display,
     )
 

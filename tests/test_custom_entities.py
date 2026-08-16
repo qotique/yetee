@@ -46,7 +46,9 @@ def test_get_renderer_types_entity_has_no_schema():
 
 
 def test_schema_can_override_renderer():
-    register_entity("MyMod", EntityConfig(files={"raw.txt": FileConfig(renderer=RENDERER_JSON)}))
+    register_entity(
+        "MyMod", EntityConfig(files={"raw.txt": FileConfig(renderer=RENDERER_JSON)})
+    )
     assert get_renderer("MyMod", "raw.txt") == RENDERER_JSON
 
 

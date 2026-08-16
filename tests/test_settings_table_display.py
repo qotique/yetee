@@ -245,7 +245,11 @@ def test_preload_cached_cancel_check_stops(display, tmp_path):
     def on_progress(done, total):
         counted.append((done, total))
 
-    asyncio.run(display.preload_cached([str(p1), str(p2)], on_progress=on_progress, cancel_check=cancel_check))
+    asyncio.run(
+        display.preload_cached(
+            [str(p1), str(p2)], on_progress=on_progress, cancel_check=cancel_check
+        )
+    )
 
     assert counted == [(1, 2)]
 
@@ -263,7 +267,9 @@ def test_preload_cached_skips_malformed_files(display, tmp_path):
 
     reported: list[tuple[int, int]] = []
     progress = lambda done, total: reported.append((done, total))
-    asyncio.run(display.preload_cached([str(p1), str(p2), str(p3)], on_progress=progress))
+    asyncio.run(
+        display.preload_cached([str(p1), str(p2), str(p3)], on_progress=progress)
+    )
 
     assert reported == [(1, 3), (2, 3), (3, 3)]
     assert str(p1) in display._parsed_cache

@@ -1391,8 +1391,13 @@ class FileDisplay:
         self._stats_btn.icon = ft.Icons.BAR_CHART if not is_cat else ft.Icons.PETS
         self._search_field.icon = ft.Icons.PETS if is_cat else ft.Icons.SEARCH
         for ctrl in (
-            self._save_btn, self._multi_btn, self._undo_btn, self._redo_btn,
-            self._lucky_btn, self._stats_btn, self._search_field,
+            self._save_btn,
+            self._multi_btn,
+            self._undo_btn,
+            self._redo_btn,
+            self._lucky_btn,
+            self._stats_btn,
+            self._search_field,
         ):
             self._try_update(ctrl)
         self._rebuild_category_menu()

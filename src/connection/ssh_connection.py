@@ -46,8 +46,12 @@ class SSHConnection(IRemoteConnection):
                 kwargs["passphrase"] = self._password
         elif self._password:
             kwargs["password"] = self._password
-        print(f"[diag SSH] connect kwargs: { {k: v for k, v in kwargs.items() if k not in ('password', 'passphrase', 'client_keys')} }")
-        print(f"[diag SSH] key_path={self._config.key_path!r} has_password={bool(self._password)}")
+        print(
+            f"[diag SSH] connect kwargs: { {k: v for k, v in kwargs.items() if k not in ('password', 'passphrase', 'client_keys')} }"
+        )
+        print(
+            f"[diag SSH] key_path={self._config.key_path!r} has_password={bool(self._password)}"
+        )
         try:
             print("[diag SSH] awaiting asyncssh.connect()...")
             conn = await asyncssh.connect(**kwargs)
@@ -104,9 +108,7 @@ class SSHConnection(IRemoteConnection):
         try:
             await self._sftp.get(remote_path, local_path)
         except (asyncssh.Error, OSError) as exc:
-            raise RemoteConnectionError(
-                f"Failed to download {remote_path}"
-            ) from exc
+            raise RemoteConnectionError(f"Failed to download {remote_path}") from exc
 
     async def upload_file(self, local_path: str, remote_path: str) -> None:
         self._require_connected()

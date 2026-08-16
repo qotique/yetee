@@ -35,11 +35,11 @@ def test_scan_profiles_nested_structure(tmp_path):
     svc = ProfileService()
     entities = svc.scan_profiles(str(tmp_path))
     assert "AUTHOR" in entities
-    assert set(entities["AUTHOR"].keys()) == {"A.json", "B.json"}
+    assert set(entities["AUTHOR"].keys()) == {"A/A.json", "B/B.json"}
 
 
 def test_scan_profiles_mixed_structure(tmp_path):
-    """Files of one mod scattered across subdirectories."""
+    """Files of one mod scattered across subdirectories keep relative keys."""
     from services.profile_service import ProfileService
 
     base = tmp_path / "MOD"
@@ -53,7 +53,12 @@ def test_scan_profiles_mixed_structure(tmp_path):
 
     svc = ProfileService()
     entities = svc.scan_profiles(str(tmp_path))
-    assert set(entities["MOD"].keys()) == {"a.json", "b.json", "c.json", "d.json"}
+    assert set(entities["MOD"].keys()) == {
+        "a.json",
+        "sub1/b.json",
+        "sub2/c.json",
+        "sub2/deep/d.json",
+    }
 
 
 def test_scan_profiles_gathers_xml_json_txt(tmp_path):
@@ -137,7 +142,7 @@ def test_collect_entity_files_gathers_files(tmp_path):
 
     svc = ProfileService()
     files = svc.collect_entity_files(str(tmp_path))
-    assert set(files.keys()) == {"a.json", "b.txt"}
+    assert set(files.keys()) == {"a.json", "sub/b.txt"}
     assert files["a.json"] == str(tmp_path / "a.json")
 
 
@@ -148,7 +153,9 @@ def test_collect_entity_files_ignores_unsupported(tmp_path):
     (tmp_path / "readme.md").write_text("ignored")
 
     svc = ProfileService()
-    assert svc.collect_entity_files(str(tmp_path)) == {"a.json": str(tmp_path / "a.json")}
+    assert svc.collect_entity_files(str(tmp_path)) == {
+        "a.json": str(tmp_path / "a.json")
+    }
 
 
 def test_collect_entity_files_skips_hidden(tmp_path):

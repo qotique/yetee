@@ -11,6 +11,10 @@ class FieldType(Enum):
     FLAG = auto()
     SINGLE_NAMED = auto()
     MULTI_NAMED = auto()
+    INT = auto()
+    FLOAT = auto()
+    BOOL = auto()
+    TOGGLE = auto()
 
 
 @dataclass
@@ -33,6 +37,18 @@ class FieldDef:
 
     def is_multi_named(self) -> bool:
         return self.type == FieldType.MULTI_NAMED
+
+    def is_int(self) -> bool:
+        return self.type == FieldType.INT
+
+    def is_float(self) -> bool:
+        return self.type == FieldType.FLOAT
+
+    def is_bool(self) -> bool:
+        return self.type == FieldType.BOOL
+
+    def is_toggle(self) -> bool:
+        return self.type == FieldType.TOGGLE
 
 
 STATIC_FIELD_DEFS: list[FieldDef] = [

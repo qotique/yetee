@@ -633,7 +633,12 @@ class EventDisplay:
         self._undo_btn.icon = ft.Icons.PETS if is_cat else ft.Icons.UNDO
         self._redo_btn.icon = ft.Icons.PETS if is_cat else ft.Icons.REDO
         self._search_field.icon = ft.Icons.PETS if is_cat else ft.Icons.SEARCH
-        for ctrl in (self._save_btn, self._undo_btn, self._redo_btn, self._search_field):
+        for ctrl in (
+            self._save_btn,
+            self._undo_btn,
+            self._redo_btn,
+            self._search_field,
+        ):
             try:
                 ctrl.update()
             except RuntimeError:

@@ -663,7 +663,9 @@ def test_preload_profile_files_skips_not_yet_available(mock_page, tmp_path):
     )
     app._profile_service = MagicMock()
     app._profile_service.scan_profiles.return_value = {
-        "TraderX": {"traderconfig.json": str(profiles / "TraderX" / "traderconfig.json")},
+        "TraderX": {
+            "traderconfig.json": str(profiles / "TraderX" / "traderconfig.json")
+        },
         "CustomMod": {"cfg.json": str(profiles / "CustomMod" / "cfg.json")},
     }
     project = MagicMock()
@@ -875,8 +877,7 @@ def test_open_remote_project_shows_sync_dialog(mock_page):
     content = dialog.content
     rows = [c for c in content.controls if isinstance(c, ft.Row)]
     assert any(
-        any(isinstance(sub, ft.ProgressBar) for sub in row.controls)
-        for row in rows
+        any(isinstance(sub, ft.ProgressBar) for sub in row.controls) for row in rows
     )
     remote_sync.sync_to_local.assert_awaited_once()
     on_progress = remote_sync.sync_to_local.call_args.kwargs.get("on_progress")
@@ -947,9 +948,7 @@ def test_unhandled_editors_switch_saves_setting_and_routes(mock_page):
             type(
                 "E",
                 (),
-                {"control": type(
-                    "C", (), {"value": True}
-                )()},
+                {"control": type("C", (), {"value": True})()},
             )()
         )
 

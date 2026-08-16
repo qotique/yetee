@@ -8,8 +8,9 @@ from collections.abc import Callable
 
 import flet as ft
 
+import expansion  # noqa: F401  (registers Expansion schemas at import)
 from di import create_app_services
-from exceptions import YeteeError, ParseError, AccessError
+from exceptions import YeteeError
 from logging_setup import setup_logging
 from models.connection import ConnectionConfig
 from models.project import Project
@@ -64,6 +65,8 @@ class App:
         self._economy_editor.event_display.on_saved = self._on_local_saved
         if self._economy_editor.settings_display is not None:
             self._economy_editor.settings_display.on_saved = self._on_local_saved
+        if self._economy_editor.form_display is not None:
+            self._economy_editor.form_display.on_saved = self._on_local_saved
 
         self.selected_theme: str = "SYSTEM"
         self.selected_language: str = "English"
@@ -300,9 +303,7 @@ class App:
                                     dense=True,
                                 ),
                                 ft.ListTile(
-                                    title=ft.Text(
-                                        "Edit all mods [BETA]"
-                                    ),
+                                    title=ft.Text("Edit all mods [BETA]"),
                                     trailing=self._unhandled_editors_switch,
                                     dense=True,
                                 ),
@@ -517,9 +518,7 @@ class App:
         self.page.update()
         self._preload_profile_files(project, confirm=False)
 
-    def _preload_profile_files(
-        self, project: Project, *, confirm: bool
-    ) -> None:
+    def _preload_profile_files(self, project: Project, *, confirm: bool) -> None:
         if not project.profiles_dir:
             return
         settings_display = self._economy_editor.settings_display
@@ -540,9 +539,7 @@ class App:
             return
         self._show_profile_preload_dialog(files, estimate)
 
-    def _show_profile_preload_dialog(
-        self, files: list[str], estimate: object
-    ) -> None:
+    def _show_profile_preload_dialog(self, files: list[str], estimate: object) -> None:
         settings_display = self._economy_editor.settings_display
         if settings_display is None:
             return
@@ -554,9 +551,7 @@ class App:
         )
         progress = ft.ProgressBar(value=None, expand=True)
         progress_text = ft.Text("0/0", size=12)
-        progress_row = ft.Row(
-            [progress, progress_text], spacing=8, visible=False
-        )
+        progress_row = ft.Row([progress, progress_text], spacing=8, visible=False)
         cancelled = {"value": False}
 
         def cancel_load(e: object) -> None:
@@ -951,9 +946,7 @@ class App:
         if not remote_dir:
             self._show_error("Set the remote economy directory first.")
             return
-        local_profiles = (
-            project.profiles_dir if cfg.remote_profiles_dir else ""
-        )
+        local_profiles = project.profiles_dir if cfg.remote_profiles_dir else ""
         sync_progress = ft.ProgressBar(value=0, expand=True)
         sync_progress_text = ft.Text("… connecting", size=12)
         sync_dialog = ft.AlertDialog(
@@ -1175,8 +1168,14 @@ class App:
 
         async def save(ev: object) -> None:
             cfg = self._build_connection_form(
-                protocol_field, host_field, port_field, username_field,
-                remote_dir_field, remote_profiles_field, key_field, project_name_field,
+                protocol_field,
+                host_field,
+                port_field,
+                username_field,
+                remote_dir_field,
+                remote_profiles_field,
+                key_field,
+                project_name_field,
             )
             self._connection_manager.add(cfg, password_field.value or "")
             self.page.pop_dialog()
@@ -1343,9 +1342,11 @@ class App:
         self._show_connections_dialog()
 
     async def _test_connection(self, cfg: ConnectionConfig) -> None:
-        print(f"[diag] _test_connection start: protocol={cfg.protocol} "
-              f"host={cfg.host} port={cfg.port} user={cfg.username} "
-              f"key={cfg.key_path!r} remote_dir={cfg.remote_economy_dir!r}")
+        print(
+            f"[diag] _test_connection start: protocol={cfg.protocol} "
+            f"host={cfg.host} port={cfg.port} user={cfg.username} "
+            f"key={cfg.key_path!r} remote_dir={cfg.remote_economy_dir!r}"
+        )
         try:
             conn = self._connection_manager.create(cfg)
             print(f"[diag] created connection object: {type(conn).__name__}")
@@ -1467,9 +1468,7 @@ class App:
 
     async def _on_unhandled_editors_change(self, e: ft.ControlEvent) -> None:
         self.show_unhandled_mod_editors = bool(e.control.value)
-        self._economy_editor.set_show_unhandled_editors(
-            self.show_unhandled_mod_editors
-        )
+        self._economy_editor.set_show_unhandled_editors(self.show_unhandled_mod_editors)
         await self._save_setting(
             "show_unhandled_mod_editors", self.show_unhandled_mod_editors
         )

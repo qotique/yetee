@@ -26,7 +26,7 @@ class FakeConnection(IRemoteConnection):
         for p in self.files:
             if not p.startswith(prefix):
                 continue
-            rest = p[len(prefix):]
+            rest = p[len(prefix) :]
             if "/" in rest:
                 names.add(rest.split("/", 1)[0])
             else:
@@ -226,7 +226,9 @@ def test_upload_to_remote_excludes_profiles(tmp_path) -> None:
     svc = RemoteSyncService(Manager(conn))
     local_profiles = tmp_path / "profiles"
     (local_profiles / "TraderX").mkdir(parents=True)
-    (local_profiles / "TraderX" / "traderconfig.json").write_text('{"b": 2}', encoding="utf-8")
+    (local_profiles / "TraderX" / "traderconfig.json").write_text(
+        '{"b": 2}', encoding="utf-8"
+    )
     (local_profiles / "CustomMod").mkdir()
     (local_profiles / "CustomMod" / "cfg.json").write_text('{"a": 1}', encoding="utf-8")
 

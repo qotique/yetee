@@ -26,7 +26,13 @@ package "src.event_display" as src.event_display {
 }
 package "src.exceptions" as src.exceptions {
 }
+package "src.expansion" as src.expansion {
+}
 package "src.file_display" as src.file_display {
+}
+package "src.form_display" as src.form_display {
+}
+package "src.form_schema" as src.form_schema {
 }
 package "src.logging_setup" as src.logging_setup {
 }
@@ -105,6 +111,7 @@ src.di --> src.controllers.search_controller
 src.di --> src.controllers.table_controller
 src.di --> src.event_display
 src.di --> src.file_display
+src.di --> src.form_display
 src.di --> src.repository.connection_repository
 src.di --> src.repository.event_repository
 src.di --> src.repository.file_cache
@@ -131,6 +138,9 @@ src.event_display --> src.models.undo_manager
 src.event_display --> src.repository.event_repository
 src.event_display --> src.repository.file_cache
 src.event_display --> src.services.entertainment_service
+src.expansion --> src.custom_entities
+src.expansion --> src.form_schema
+src.expansion --> src.models.field_def
 src.file_display --> src.controllers.dirty_state_manager
 src.file_display --> src.controllers.pagination_controller
 src.file_display --> src.controllers.search_controller
@@ -144,9 +154,15 @@ src.file_display --> src.repository.xml_repository
 src.file_display --> src.services.entertainment_service
 src.file_display --> src.ui.batch_panel
 src.file_display --> src.ui.detail_panel
+src.form_display --> src.exceptions
+src.form_display --> src.form_schema
+src.form_display --> src.models.field_def
+src.form_display --> src.repository.settings_repository
+src.form_schema --> src.models.field_def
 src.main --> src.di
 src.main --> src.exceptions
 src.main --> src.logging_setup
+src.main --> src.mod_handlers
 src.main --> src.models.connection
 src.main --> src.models.project
 src.main --> src.services.config_service
@@ -165,6 +181,7 @@ src.mod_handlers --> src.custom_entities
 src.protocols --> src.models.row_data
 src.settings_table_display --> src.controllers.table_controller
 src.settings_table_display --> src.custom_entities
+src.settings_table_display --> src.exceptions
 src.settings_table_display --> src.models.field_def
 src.settings_table_display --> src.models.row_data
 src.settings_table_display --> src.repository.settings_repository

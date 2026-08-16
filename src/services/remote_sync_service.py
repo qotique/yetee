@@ -37,7 +37,7 @@ def _top_level_name(remote_path: str, base_url: str) -> str:
     root = base_url.rstrip("/") + "/"
     if not remote_path.startswith(root):
         return remote_path.split("/", 1)[0]
-    rest = remote_path[len(root):]
+    rest = remote_path[len(root) :]
     return rest.split("/", 1)[0]
 
 
@@ -246,9 +246,7 @@ class RemoteSyncService:
             if local_profiles_dir and remote_profiles_dir:
                 for root, dirs, files in os.walk(local_profiles_dir):
                     if exclude_profiles and root == local_profiles_dir:
-                        dirs[:] = [
-                            d for d in dirs if d not in exclude_profiles
-                        ]
+                        dirs[:] = [d for d in dirs if d not in exclude_profiles]
                     for name in files:
                         if not _is_profile_file(name):
                             continue
