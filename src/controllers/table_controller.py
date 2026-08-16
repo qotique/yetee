@@ -22,14 +22,14 @@ DEFAULT_FLAG_NAMES = [
 ]
 
 FIELD_TIPS = {
-    "name": "The item type name used in the XML file",
+    "name": "The item ClassName used in the XML file",
     "nominal": "The global target quantity the economy maintains across the map",
     "lifetime": "How long items persist before despawning (seconds)",
     "restock": "The interval between economy replenishment checks (seconds)",
     "min": "The absolute minimum quantity that must exist in the economy",
     "quantmin": "Minimum spawn count per loot position or container",
     "quantmax": "Maximum spawn count per loot position or container",
-    "cost": "Spawn priority; lower values increase spawn priority",
+    "cost": "Spawn priority; higher values increase spawn priority",
     "category": "Classifies items for loot table filtering",
 }
 
