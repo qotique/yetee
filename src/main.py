@@ -8,6 +8,7 @@ from collections.abc import Callable
 
 import flet as ft
 
+import expansion  # noqa: F401  (registers Expansion schemas at import)
 from di import create_app_services
 from exceptions import YeteeError, ParseError, AccessError
 from logging_setup import setup_logging
@@ -64,6 +65,8 @@ class App:
         self._economy_editor.event_display.on_saved = self._on_local_saved
         if self._economy_editor.settings_display is not None:
             self._economy_editor.settings_display.on_saved = self._on_local_saved
+        if self._economy_editor.form_display is not None:
+            self._economy_editor.form_display.on_saved = self._on_local_saved
 
         self.selected_theme: str = "SYSTEM"
         self.selected_language: str = "English"

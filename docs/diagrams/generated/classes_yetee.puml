@@ -11,6 +11,7 @@ class "App" as src.main.App {
   page : Page
   selected_language : str
   selected_theme : str
+  show_unhandled_mod_editors : bool
   start_container : Container
   build_main_view() -> ft.View
   open_settings(e: object) -> None
@@ -109,13 +110,16 @@ class "EconomyEditor" as src.ui.economy_editor.EconomyEditor {
   entity_files : list[str]
   event_display : EventDisplay
   file_display : FileDisplay
+  form_display : FormDisplay | None
   is_types_entity : bool
   project : Project | None
   settings_display : SettingsTableDisplay | None
   get_file_path(label: str) -> str | None
+  is_editable_entity(entity: str) -> bool
   load_project(project: Project) -> None
   save_current(e: object) -> None
   save_file() -> None
+  set_show_unhandled_editors(enabled: bool) -> None
   switch_entity(entity: str) -> None
   switch_file(label: str) -> None
   unload() -> None
@@ -124,6 +128,7 @@ class "EconomyService" as src.services.economy_service.EconomyService {
   find_config(economy_dir: str) -> str | None
   get_all_editable_files(economy_dir: str) -> dict[str, str]
   get_economy_dir_files(economy_dir: str) -> dict[str, str]
+  get_expansion_files(economy_dir: str) -> dict[str, dict[str, str]]
   get_known_files(directory: str) -> dict[str, str]
   get_type_files(economy_dir: str) -> dict[str, str]
   get_types_dir(economy_dir: str) -> str
@@ -148,7 +153,9 @@ class "EntertainmentService" as src.services.entertainment_service.Entertainment
   record_edit(field_key: str) -> None
 }
 class "EntityConfig" as src.custom_entities.EntityConfig {
+  default
   files : dict[str, FileConfig]
+  folders : dict[str, FileConfig]
   file_config(filename: str) -> FileConfig
 }
 class "EventDisplay" as src.event_display.EventDisplay {
@@ -187,10 +194,14 @@ class "FieldDef" as src.models.field_def.FieldDef {
   options : list[str] | None
   type
   width : int
+  is_bool() -> bool
   is_flag() -> bool
+  is_float() -> bool
+  is_int() -> bool
   is_multi_named() -> bool
   is_single_named() -> bool
   is_text() -> bool
+  is_toggle() -> bool
 }
 class "FieldType" as src.models.field_def.FieldType {
   name
@@ -222,6 +233,57 @@ class "FileDisplay" as src.file_display.FileDisplay {
   show_meow_popup() -> None
   update_cat_icons() -> None
   update_funny_visibility() -> None
+}
+class "FormDict" as src.form_schema.FormDict {
+  key : str
+  label : str
+  value_type : FieldType
+}
+class "FormDisplay" as src.form_display.FormDisplay {
+  button_row : Row
+  control : Container
+  is_dirty : bool
+  on_file_select : Callable[[str], None] | None
+  on_saved : Callable[[], None] | None
+  clear() -> None
+  clear_cache(path: str) -> None
+  load_file(path: str) -> None
+  load_file_async(path: str, cancel_check: Callable[[], bool] | None) -> None
+  preload_cached(paths: list[str], on_progress: Callable[[int, int], None] | None, cancel_check: Callable[[], bool] | None) -> None
+  save_async() -> None
+  save_current(e: object) -> None
+  save_file() -> None
+  set_entity(entity: str) -> None
+  set_files(files: dict[str, str]) -> None
+}
+class "FormField" as src.form_schema.FormField {
+  key : str
+  label : str
+  options : tuple[str, ...]
+  type : FieldType
+}
+class "FormGrid" as src.form_schema.FormGrid {
+  columns : tuple[FormField, ...]
+  key : str
+  label : str
+}
+class "FormGroup" as src.form_schema.FormGroup {
+  key : str
+  label : str
+  schema : str
+}
+class "FormList" as src.form_schema.FormList {
+  item_type : FieldType
+  key : str
+  label : str
+}
+class "FormSchema" as src.form_schema.FormSchema {
+  dicts : tuple[FormDict, ...]
+  fields : tuple[FormField, ...]
+  grids : tuple[FormGrid, ...]
+  groups : tuple[FormGroup, ...]
+  lists : tuple[FormList, ...]
+  name_key : str | None
 }
 class "IBatchPanel" as src.protocols.IBatchPanel {
   build() -> object
@@ -303,6 +365,7 @@ class "IRemoteConnection" as src.protocols.IRemoteConnection {
   upload_file(local_path: str, remote_path: str) -> None
 }
 class "ISearch" as src.protocols.ISearch {
+  case_sensitive : bool
   query : str
   filter_rows(rows: list[RowData]) -> list[int]
 }
@@ -327,8 +390,10 @@ class "IXmlRepository" as src.protocols.IXmlRepository {
 }
 class "JsonSettingsRepository" as src.repository.settings_repository.JsonSettingsRepository {
   invalidate_cache(path: str) -> None
-  parse_file(path: str) -> tuple[list[FieldDef], list[RowData]]
+  load_doc(path: str) -> object
+  parse_file(path: str, schema: tuple[FieldDef, ...] | None) -> tuple[list[FieldDef], list[RowData]]
   save(path: str, rows: list[RowData]) -> None
+  save_doc(path: str, doc: object) -> None
 }
 class "<color:red>NetworkError</color>" as src.exceptions.NetworkError {
 }
@@ -393,8 +458,8 @@ class "<color:red>RemoteNotConnectedError</color>" as src.connection.ftp_connect
 class "<color:red>RemoteNotConnectedError</color>" as src.connection.ssh_connection.RemoteNotConnectedError {
 }
 class "RemoteSyncService" as src.services.remote_sync_service.RemoteSyncService {
-  sync_to_local(config: ConnectionConfig, remote_dir: str, local_dir: str, connection: IRemoteConnection | None, remote_profiles_dir: str, local_profiles_dir: str) -> None
-  upload_to_remote(config: ConnectionConfig, local_dir: str, remote_dir: str, connection: IRemoteConnection | None, local_profiles_dir: str, remote_profiles_dir: str) -> None
+  sync_to_local(config: ConnectionConfig, remote_dir: str, local_dir: str, connection: IRemoteConnection | None, remote_profiles_dir: str, local_profiles_dir: str, exclude_profiles: set[str] | None, on_progress: ProgressCallback | None, on_status: Callable[[str], None] | None) -> None
+  upload_to_remote(config: ConnectionConfig, local_dir: str, remote_dir: str, connection: IRemoteConnection | None, local_profiles_dir: str, remote_profiles_dir: str, exclude_profiles: set[str] | None) -> None
 }
 class "<color:red>RemoteTimeoutError</color>" as src.exceptions.RemoteTimeoutError {
 }
@@ -417,11 +482,12 @@ class "SSHConnection" as src.connection.ssh_connection.SSHConnection {
   upload_file(local_path: str, remote_path: str) -> None
 }
 class "SearchController" as src.controllers.search_controller.SearchController {
+  case_sensitive : bool
   query : str
   filter_rows(rows: list[RowData]) -> list[int]
   reset() -> None
   set_filters(category: str, usage: str, value: str) -> None
-  set_search(value: str) -> None
+  set_search(value: str, case_sensitive: bool) -> None
 }
 class "SettingsService" as src.services.settings_service.SettingsService {
   load_settings() -> dict[str, object]
@@ -496,7 +562,7 @@ class "XmlRepository" as src.repository.xml_repository.XmlRepository {
 }
 class "XmlSettingsRepository" as src.repository.settings_repository.XmlSettingsRepository {
   invalidate_cache(path: str) -> None
-  parse_file(path: str) -> tuple[list[FieldDef], list[RowData]]
+  parse_file(path: str, schema: tuple[FieldDef, ...] | None) -> tuple[list[FieldDef], list[RowData]]
   save(path: str, rows: list[RowData]) -> None
 }
 class "<color:red>YeteeError</color>" as src.exceptions.YeteeError {
@@ -518,5 +584,6 @@ src.mod_handlers.CommunityOnlineTools --|> src.mod_handlers.NotYetAvailableMod
 src.mod_handlers.PermissionsFramework --|> src.mod_handlers.NotYetAvailableMod
 src.mod_handlers.SpawnerBubaku --|> src.mod_handlers.NotYetAvailableMod
 src.mod_handlers.TraderX --|> src.mod_handlers.NotYetAvailableMod
+src.custom_entities.EntityConfig --> src.custom_entities.FileConfig : default
 src.models.field_def.FieldDef --> src.models.field_def.FieldType : type
 @enduml

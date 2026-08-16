@@ -28,10 +28,19 @@ class FileConfig:
 @dataclass(frozen=True)
 class EntityConfig:
     files: dict[str, FileConfig] = field(default_factory=dict)
+    folders: dict[str, FileConfig] = field(default_factory=dict)
+    default: FileConfig = FileConfig()
 
     def file_config(self, filename: str) -> FileConfig:
         name = Path(filename).name
-        return self.files.get(name, FileConfig())
+        if name in self.files:
+            return self.files[name]
+        norm = filename.replace("\\", "/")
+        for folder, cfg in self.folders.items():
+            folder_norm = folder.replace("\\", "/").strip("/")
+            if f"/{folder_norm}/" in f"/{norm}":
+                return cfg
+        return self.default
 
 
 _DEFAULT_ENTITY = EntityConfig()

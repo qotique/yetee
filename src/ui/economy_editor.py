@@ -2,12 +2,15 @@ from __future__ import annotations
 
 from collections.abc import Callable
 import logging
+import os
 from typing import TypeAlias
 
 import flet as ft
 
 from event_display import EventDisplay
 from file_display import FileDisplay
+from form_display import FormDisplay
+from form_schema import entity_has_form_schemas
 from models.project import Project
 from mod_handlers import is_not_yet_available
 from custom_entities import is_registered_entity
@@ -31,7 +34,7 @@ TYPES_ENTITY = "Types"
 ADD_TAB_LABEL = "+"
 
 DisplayWidget: TypeAlias = (
-    FileDisplay | EventDisplay | SettingsTableDisplay | UnavailableDisplay
+    FileDisplay | EventDisplay | SettingsTableDisplay | UnavailableDisplay | FormDisplay
 )
 
 
@@ -64,6 +67,7 @@ class EconomyEditor:
         config_service: ConfigService | None = None,
         profile_service: IProfileService | None = None,
         settings_display: SettingsTableDisplay | None = None,
+        form_display: FormDisplay | None = None,
         unavailable_display: UnavailableDisplay | None = None,
     ):
         self._page = page
@@ -79,6 +83,7 @@ class EconomyEditor:
         self._file_display = file_display
         self._event_display = event_display
         self._settings_display = settings_display
+        self._form_display = form_display
         self._unavailable_display = unavailable_display
 
         self._content_slot = ft.Container(
@@ -122,6 +127,15 @@ class EconomyEditor:
             )
         else:
             self._settings_entity_config = None
+
+        if self._form_display is not None:
+            self._form_entity_config: _EntityConfig | None = _EntityConfig(
+                display=self._form_display,
+                show_tabs=False,
+                schedule_load=self._schedule_settings_load,
+            )
+        else:
+            self._form_entity_config = None
 
         if self._unavailable_display is not None:
             self._unavailable_entity_config: _EntityConfig | None = _EntityConfig(
@@ -194,7 +208,12 @@ class EconomyEditor:
 
         type_file_map: dict[str, str] = {}
         for fname, fpath in type_files.items():
-            type_file_map[_get_label(fname)] = fpath
+            if os.path.exists(fpath):
+                type_file_map[_get_label(fname)] = fpath
+            else:
+                logger.warning(
+                    "Skipping type file %s: no such file", fpath
+                )
         self._entities[TYPES_ENTITY] = type_file_map
 
         for fname, fpath in known_files.items():
@@ -210,6 +229,8 @@ class EconomyEditor:
 
         if project.profiles_dir and self._profile_service is not None:
             self._reload_profile_entities()
+
+        self._add_expansion_entities(svc, economy_dir)
 
         self._events_file_path = known_files.get("events.xml")
         self._spawns_file_path = economy_dir_files.get("cfgeventspawns.xml")
@@ -233,6 +254,8 @@ class EconomyEditor:
         self._event_display.clear()
         if self._settings_display is not None:
             self._settings_display.clear()
+        if self._form_display is not None:
+            self._form_display.clear()
         if self._unavailable_display is not None:
             self._unavailable_display.clear()
         self._project = None
@@ -263,6 +286,9 @@ class EconomyEditor:
         if self._settings_display is not None:
             self._settings_display.save_file()
             self._settings_display.clear()
+        if self._form_display is not None:
+            self._form_display.save_file()
+            self._form_display.clear()
         self._clear_tabs()
         files = self._entities[entity]
         file_labels = list(files.keys())
@@ -272,6 +298,11 @@ class EconomyEditor:
         display = config.display
         if display is self._settings_display:
             self._settings_display.set_entity(entity)
+        elif display is self._form_display:
+            self._form_display.set_entity(entity)
+            self._form_display.set_files(files)
+            self._form_display.on_file_select = self.switch_file
+            self._form_display.on_file_create = self._on_form_file_created
         elif self._unavailable_display is not None and display is self._unavailable_display:
             self._unavailable_display.set_entity(entity)
 
@@ -301,25 +332,24 @@ class EconomyEditor:
             return
         logger.info("SWITCH %s -> %s", self._current_file, label)
         config = self._config_for(self._current_entity)
-        self._file_display.save_file()
-        self._file_display.clear()
-        self._event_display.clear()
-        if self._settings_display is not None:
-            self._settings_display.save_file()
-            self._settings_display.clear()
+        config.display.save_file()
         self._current_file = label
-        try:
-            self.control.update()
-        except RuntimeError:
-            pass
         if config.schedule_load is not None:
             config.schedule_load()
+
+    def _on_form_file_created(self, label: str, path: str) -> None:
+        if self._current_entity is None or self._current_entity not in self._entities:
+            return
+        self._entities[self._current_entity][label] = path
+        self._current_file = label
 
     def save_file(self) -> None:
         self._file_display.save_file()
         self._event_display.save_file()
         if self._settings_display is not None:
             self._settings_display.save_file()
+        if self._form_display is not None:
+            self._form_display.save_file()
 
     def save_current(self, e: object = None) -> None:
         if self._current_entity is None:
@@ -342,6 +372,10 @@ class EconomyEditor:
     @property
     def settings_display(self) -> SettingsTableDisplay | None:
         return self._settings_display
+
+    @property
+    def form_display(self) -> FormDisplay | None:
+        return self._form_display
 
     @property
     def available_entities(self) -> list[str]:
@@ -383,6 +417,12 @@ class EconomyEditor:
         if self._unhandled_is_unavailable(entity):
             assert self._unavailable_entity_config is not None
             return self._unavailable_entity_config
+        if (
+            self._form_entity_config is not None
+            and entity in self._entities
+            and entity_has_form_schemas(entity, self._entities[entity])
+        ):
+            return self._form_entity_config
         return self._default_entity_config
 
     def _unhandled_is_unavailable(self, entity: str) -> bool:
@@ -406,6 +446,15 @@ class EconomyEditor:
                 self._reload_profile_entities()
             if self._current_entity is not None:
                 self.switch_entity(self._current_entity, force=True)
+
+    def _add_expansion_entities(
+        self, svc: EconomyService, economy_dir: str
+    ) -> None:
+        mission = svc.get_expansion_files(economy_dir)
+        if not mission:
+            return
+        profile = self._entities.get("ExpansionMod", {})
+        self._entities["ExpansionMod"] = {**mission, **profile}
 
     def _reload_profile_entities(self) -> None:
         if self._profile_service is None or self._project is None:
@@ -484,6 +533,12 @@ class EconomyEditor:
             if display is self._settings_display and self._settings_display is not None:
                 self._settings_display.set_entity(self._current_entity)
                 await self._settings_display.load_file_async(
+                    path, cancel_check=lambda: seq != self._load_seq
+                )
+            elif display is self._form_display and self._form_display is not None:
+                self._form_display.set_entity(self._current_entity)
+                self._form_display.set_files(files)
+                await self._form_display.load_file_async(
                     path, cancel_check=lambda: seq != self._load_seq
                 )
             else:

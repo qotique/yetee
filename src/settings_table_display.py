@@ -185,7 +185,8 @@ class SettingsTableDisplay:
         if cached is not None:
             return cached
         if renderer == RENDERER_JSON:
-            result = self._json_repo.parse_file(path)
+            declared = get_columns(self._entity, path)
+            result = self._json_repo.parse_file(path, declared or None)
         else:
             result = self._xml_repo.parse_file(path)
         self._parsed_cache[path] = result
@@ -221,8 +222,13 @@ class SettingsTableDisplay:
             if on_progress:
                 on_progress(done, len(paths))
     def _apply_table_file(self, defs: list[FieldDef], rows: list[RowData]) -> None:
-        declared = get_columns(self._entity, self._path or "")
-        self._field_defs = list(declared) if declared else (defs or [])
+        declared = list(get_columns(self._entity, self._path or ""))
+        if declared:
+            declared_keys = {fd.key for fd in declared}
+            extras = [fd for fd in (defs or []) if fd.key not in declared_keys]
+            self._field_defs = declared + extras
+        else:
+            self._field_defs = defs or []
         self._rows = rows
         self._page_idx = 0
         self._dirty = False

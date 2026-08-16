@@ -59,6 +59,37 @@ def test_load_project_adds_dynamic_entities(editor, tmp_path):
     assert editor.available_entities[-1] == "MOD"
 
 
+def test_load_project_skips_missing_type_files(editor, tmp_path):
+    eco = tmp_path / "eco"
+    eco.mkdir(parents=True)
+    (eco / "cfgeconomycore.xml").write_text(
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<economy><ce folder="nh_ce">'
+        '<file name="nh_types.xml" type="types"/></ce></economy>'
+    )
+    project = _project(tmp_path)
+
+    editor.load_project(project)
+
+    assert editor.entity_files == []
+
+
+def test_load_project_keeps_existing_type_files(editor, tmp_path):
+    db = tmp_path / "eco" / "db"
+    db.mkdir(parents=True)
+    (db / "types.xml").write_text("<types/>")
+    (tmp_path / "eco" / "cfgeconomycore.xml").write_text(
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<economy><ce folder="db">'
+        '<file name="types.xml" type="types"/></ce></economy>'
+    )
+    project = _project(tmp_path)
+
+    editor.load_project(project)
+
+    assert editor.entity_files == ["Types"]
+
+
 def test_load_project_dynamic_entity_strategy(editor, tmp_path):
     mod = tmp_path / "profiles" / "MOD"
     mod.mkdir(parents=True)
@@ -198,11 +229,12 @@ def test_unhandled_mod_custom_entities_stay_editable(editor, tmp_path):
 
 
 def test_unhandled_switch_keeps_registered_entities_editable(editor, tmp_path):
-    from custom_entities import EntityConfig, register_entity
+    from custom_entities import EntityConfig, _CUSTOM_ENTITIES, register_entity
 
     mod = tmp_path / "profiles" / "RegisteredMod"
     mod.mkdir(parents=True)
     (mod / "cfg.json").write_text("{}")
+    prior = dict(_CUSTOM_ENTITIES)
     register_entity("RegisteredMod", EntityConfig())
     try:
         project = _project(tmp_path, profiles_dir=str(tmp_path / "profiles"))
@@ -211,10 +243,8 @@ def test_unhandled_switch_keeps_registered_entities_editable(editor, tmp_path):
         assert editor._config_for("RegisteredMod").display is not editor._unavailable_display
         assert isinstance(editor._entities["RegisteredMod"].get("cfg.json"), str)
     finally:
-        for name in list(
-            __import__("custom_entities")._CUSTOM_ENTITIES
-        ):
-            del __import__("custom_entities")._CUSTOM_ENTITIES[name]
+        _CUSTOM_ENTITIES.clear()
+        _CUSTOM_ENTITIES.update(prior)
 
 
 def test_switch_entity_unknown_is_noop(editor, tmp_path):
