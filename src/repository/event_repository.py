@@ -7,7 +7,7 @@ from pathlib import Path
 
 from lxml import etree as ET
 
-from exceptions import ParseError, AccessError
+from core.exceptions import ParseError, AccessError
 from models.row_data import RowData
 from repository.file_cache import FileCache
 from repository.xml_utils import elem_text, set_elem_text

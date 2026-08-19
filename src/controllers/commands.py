@@ -5,7 +5,7 @@ from collections.abc import Iterable
 
 from models.field_def import CATEGORIES, USAGES, VALUES_LIST
 from models.row_data import RowData
-from protocols import IXmlRepository
+from core.protocols import IXmlRepository
 
 LIFETIME_OPTIONS = [300, 600, 1800, 3600, 7200, 14400, 28800, 43200, 86400]
 RESTOCK_OPTIONS = [60, 120, 300, 600, 900, 1800, 3600, 7200]

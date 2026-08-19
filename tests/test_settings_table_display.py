@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from repository.settings_repository import JsonSettingsRepository, XmlSettingsRepository
-from settings_table_display import SettingsTableDisplay
+from ui.settings_table_display import SettingsTableDisplay
 
 
 @pytest.fixture

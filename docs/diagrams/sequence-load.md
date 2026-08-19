@@ -93,7 +93,7 @@ sequenceDiagram
 
 ## Form / master-detail load / Загрузка формы (master-detail)
 
-Entities with declared form schemas (`src/expansion.py` traders/categories/quests
+Entities with declared form schemas (`src/models/expansion.py` traders/categories/quests
 and any `register_form_schema`/`register_form_folder_schema`) route to
 `FormDisplay` instead of the table: `EconomyEditor` uses
 `entity_has_form_schemas(entity, files)` and wires
@@ -108,7 +108,7 @@ currently selected file is auto-expanded.
 their `Items`/`InventoryCargo` render as nested tile forms instead of raw JSON.
 
 Сущности с объявленными form-схемами (трейдеры/категории/квесты из
-`src/expansion.py` и любые `register_form_schema`/`register_form_folder_schema`)
+`src/models/expansion.py` и любые `register_form_schema`/`register_form_folder_schema`)
 маршрутизируются в `FormDisplay` вместо таблицы: `EconomyEditor` использует
 `entity_has_form_schemas(entity, files)` и подключает
 `form_display.on_file_select = switch_file`, чтобы мастер-список переключал файлы.

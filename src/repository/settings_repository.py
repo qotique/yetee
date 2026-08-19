@@ -5,7 +5,7 @@ import logging
 
 from lxml import etree as ET
 
-from exceptions import ParseError, AccessError
+from core.exceptions import ParseError, AccessError
 from models.field_def import FieldDef, FieldType
 from models.row_data import RowData
 

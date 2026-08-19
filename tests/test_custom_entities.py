@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from custom_entities import (
+from models.custom_entities import (
     EXTENSION_RENDERERS,
     RENDERER_JSON,
     RENDERER_TXT,

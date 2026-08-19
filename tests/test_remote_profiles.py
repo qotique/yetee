@@ -1,9 +1,9 @@
 import asyncio
 import os
 
-from exceptions import RemoteConnectionError
+from core.exceptions import RemoteConnectionError
 from models.connection import ConnectionConfig
-from protocols import IRemoteConnection
+from core.protocols import IRemoteConnection
 from services.remote_sync_service import RemoteSyncService
 
 

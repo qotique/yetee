@@ -22,41 +22,37 @@ package "src.controllers.search_controller" as src.controllers.search_controller
 }
 package "src.controllers.table_controller" as src.controllers.table_controller {
 }
-package "src.custom_entities" as src.custom_entities {
+package "src.core" as src.core {
 }
-package "src.di" as src.di {
+package "src.core.di" as src.core.di {
 }
-package "src.event_display" as src.event_display {
+package "src.core.exceptions" as src.core.exceptions {
 }
-package "src.exceptions" as src.exceptions {
+package "src.core.logging_setup" as src.core.logging_setup {
 }
-package "src.expansion" as src.expansion {
-}
-package "src.file_display" as src.file_display {
-}
-package "src.form_display" as src.form_display {
-}
-package "src.form_schema" as src.form_schema {
-}
-package "src.logging_setup" as src.logging_setup {
+package "src.core.protocols" as src.core.protocols {
 }
 package "src.main" as src.main {
-}
-package "src.mod_handlers" as src.mod_handlers {
 }
 package "src.models" as src.models {
 }
 package "src.models.connection" as src.models.connection {
 }
+package "src.models.custom_entities" as src.models.custom_entities {
+}
+package "src.models.expansion" as src.models.expansion {
+}
 package "src.models.field_def" as src.models.field_def {
+}
+package "src.models.form_schema" as src.models.form_schema {
+}
+package "src.models.mod_handlers" as src.models.mod_handlers {
 }
 package "src.models.project" as src.models.project {
 }
 package "src.models.row_data" as src.models.row_data {
 }
 package "src.models.undo_manager" as src.models.undo_manager {
-}
-package "src.protocols" as src.protocols {
 }
 package "src.repository" as src.repository {
 }
@@ -94,8 +90,6 @@ package "src.services.settings_service" as src.services.settings_service {
 }
 package "src.services.update_service" as src.services.update_service {
 }
-package "src.settings_table_display" as src.settings_table_display {
-}
 package "src.ui" as src.ui {
 }
 package "src.ui.batch_panel" as src.ui.batch_panel {
@@ -106,71 +100,25 @@ package "src.ui.detail_panel" as src.ui.detail_panel {
 }
 package "src.ui.economy_editor" as src.ui.economy_editor {
 }
+package "src.ui.event_display" as src.ui.event_display {
+}
+package "src.ui.file_display" as src.ui.file_display {
+}
 package "src.ui.filter_menu" as src.ui.filter_menu {
+}
+package "src.ui.form_display" as src.ui.form_display {
 }
 package "src.ui.fun_presenter" as src.ui.fun_presenter {
 }
-package "src.unavailable_display" as src.unavailable_display {
+package "src.ui.settings_table_display" as src.ui.settings_table_display {
 }
-src.custom_entities --> src.models.field_def
-src.di --> src.controllers.dirty_state_manager
-src.di --> src.controllers.pagination_controller
-src.di --> src.controllers.search_controller
-src.di --> src.controllers.table_controller
-src.di --> src.event_display
-src.di --> src.file_display
-src.di --> src.form_display
-src.di --> src.repository.connection_repository
-src.di --> src.repository.event_repository
-src.di --> src.repository.file_cache
-src.di --> src.repository.settings_repository
-src.di --> src.repository.xml_repository
-src.di --> src.services.config_service
-src.di --> src.services.connection_manager
-src.di --> src.services.entertainment_service
-src.di --> src.services.profile_service
-src.di --> src.services.project_service
-src.di --> src.services.remote_sync_service
-src.di --> src.services.settings_service
-src.di --> src.services.update_service
-src.di --> src.settings_table_display
-src.di --> src.ui.economy_editor
-src.di --> src.unavailable_display
-src.event_display --> src.controllers.dirty_state_manager
-src.event_display --> src.controllers.pagination_controller
-src.event_display --> src.controllers.search_controller
-src.event_display --> src.controllers.table_controller
-src.event_display --> src.models.field_def
-src.event_display --> src.models.row_data
-src.event_display --> src.models.undo_manager
-src.event_display --> src.repository.event_repository
-src.event_display --> src.repository.file_cache
-src.event_display --> src.services.entertainment_service
-src.expansion --> src.custom_entities
-src.expansion --> src.form_schema
-src.expansion --> src.models.field_def
-src.file_display --> src.controllers.file_session
-src.file_display --> src.controllers.table_controller
-src.file_display --> src.models.field_def
-src.file_display --> src.models.row_data
-src.file_display --> src.protocols
-src.file_display --> src.repository.file_cache
-src.file_display --> src.repository.xml_repository
-src.file_display --> src.services.entertainment_service
-src.file_display --> src.ui.batch_panel
-src.file_display --> src.ui.detail_panel
-src.file_display --> src.ui.filter_menu
-src.file_display --> src.ui.fun_presenter
-src.form_display --> src.exceptions
-src.form_display --> src.form_schema
-src.form_display --> src.models.field_def
-src.form_display --> src.repository.settings_repository
-src.form_schema --> src.models.field_def
-src.main --> src.di
-src.main --> src.exceptions
-src.main --> src.logging_setup
-src.main --> src.mod_handlers
+package "src.ui.unavailable_display" as src.ui.unavailable_display {
+}
+src.main --> src.core.di
+src.main --> src.core.exceptions
+src.main --> src.core.logging_setup
 src.main --> src.models.connection
+src.main --> src.models.mod_handlers
 src.main --> src.models.project
 src.main --> src.services.config_service
 src.main --> src.services.connection_manager
@@ -182,15 +130,6 @@ src.main --> src.services.project_service
 src.main --> src.services.remote_sync_service
 src.main --> src.services.settings_service
 src.main --> src.services.update_service
-src.main --> src.settings_table_display
 src.main --> src.ui.economy_editor
-src.mod_handlers --> src.custom_entities
-src.protocols --> src.models.row_data
-src.settings_table_display --> src.controllers.table_controller
-src.settings_table_display --> src.custom_entities
-src.settings_table_display --> src.exceptions
-src.settings_table_display --> src.models.field_def
-src.settings_table_display --> src.models.row_data
-src.settings_table_display --> src.repository.settings_repository
-src.unavailable_display --> src.mod_handlers
+src.main --> src.ui.settings_table_display
 @enduml

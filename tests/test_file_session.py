@@ -9,7 +9,7 @@ from lxml import etree as ET
 from controllers.commands import LIFETIME_OPTIONS
 from controllers.file_session import FileSession
 from models.row_data import RowData
-from protocols import IXmlRepository
+from core.protocols import IXmlRepository
 from repository.file_cache import FileCache
 
 
