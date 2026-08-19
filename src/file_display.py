@@ -1,11 +1,8 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
-import random
 import time
-import urllib.request
 from collections.abc import Callable
 
 from lxml import etree as ET
@@ -41,6 +38,7 @@ from services.entertainment_service import EntertainmentService
 from ui.batch_panel import BatchPanel
 from ui.detail_panel import DetailPanel
 from ui.filter_menu import FilterMenu, FilterSpec
+from ui.fun_presenter import FunPresenter
 
 import flet as ft
 
@@ -99,6 +97,7 @@ class FileDisplay:
         detail_panel: IDetailPanel | None = None,
         batch_panel: IBatchPanel | None = None,
         entertainment_service: EntertainmentService | None = None,
+        fun_presenter: FunPresenter | None = None,
     ):
         self._page = page
         self.cache = cache or FileCache()
@@ -259,6 +258,12 @@ class FileDisplay:
             ),
             transition=ft.AnimatedSwitcherTransition.FADE,
             duration=500,
+        )
+        self._fun = fun_presenter or FunPresenter(
+            page,
+            entertainment_service,
+            self._tips_switcher,
+            self._save_text,
         )
         self._detail_placeholder = ft.Container(
             content=ft.Column(
@@ -513,7 +518,7 @@ class FileDisplay:
         self._update_fab_icon()
         if self._tip_task is not None and not self._tip_task.done():
             self._tip_task.cancel()
-        self._tip_task = asyncio.create_task(self._cycle_tip())
+        self._tip_task = asyncio.create_task(self._fun.cycle_tip(_TIPS))
 
     def _is_text_file(self, path: str) -> bool:
         return not path.lower().endswith(".xml")
@@ -637,26 +642,6 @@ class FileDisplay:
             logger.error("Save failed for %s: %s", self._path, ex)
         self.control.update()
 
-    async def _cycle_tip(self) -> None:
-        idx = 0
-        while True:
-            try:
-                await asyncio.sleep(6)
-            except asyncio.CancelledError:
-                return
-            idx = (idx + 1) % len(_TIPS)
-            if self._entertainment_service and self._entertainment_service.cat_mode:
-                tip = self._entertainment_service.get_cat_tip(idx)
-            else:
-                tip = _TIPS[idx]
-            self._tips_switcher.content = ft.Text(
-                tip,
-                size=11,
-                italic=True,
-                color=ft.Colors.GREY_500,
-            )
-            self._tips_switcher.update()
-
     def _on_text_change(self, e: object) -> None:
         self._dirty_state.mark_dirty()
         if self._save_text.value:
@@ -683,53 +668,7 @@ class FileDisplay:
 
     def _on_field_change(self, e: object) -> None:
         self._dirty_state.mark_dirty()
-        if self._entertainment_service:
-            if e is not None:
-                control = getattr(e, "control", None)
-                if control is not None:
-                    field_key = getattr(control, "data", None)
-                    if field_key:
-                        self._entertainment_service.record_edit(field_key)
-                        if field_key == "name":
-                            name = getattr(control, "value", "")
-                            self._check_easter_egg_value(name)
-            achievement = self._entertainment_service.check_achievements()
-            if achievement is not None:
-                name = self._entertainment_service.get_achievement_name(achievement)
-                if name:
-                    self._page.run_task(
-                        self._show_achievement_fireworks,
-                        achievement,
-                        name,
-                    )
-
-    def _check_easter_egg_value(self, name: str) -> None:
-        if not self._entertainment_service:
-            return
-        egg = self._entertainment_service.check_easter_egg(name)
-        if egg:
-            msg, color = egg
-            dialog = ft.AlertDialog(
-                title=ft.Text("Easter Egg Found!", weight=ft.FontWeight.BOLD),
-                content=ft.Column(
-                    [
-                        ft.Text(
-                            msg,
-                            size=18,
-                            weight=ft.FontWeight.BOLD,
-                            color=color,
-                        ),
-                    ],
-                    tight=True,
-                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                ),
-                actions=[
-                    ft.TextButton("Nice!", on_click=lambda _: self._page.pop_dialog())
-                ],
-                actions_alignment=ft.MainAxisAlignment.CENTER,
-            )
-            self._page.show_dialog(dialog)
-            self._page.update()
+        self._fun.on_field_change(e)
 
     def _on_fab_click(self, e: object) -> None:
         if self._path is None:
@@ -1201,13 +1140,7 @@ class FileDisplay:
         self._redo_btn.update()
 
     def update_funny_visibility(self) -> None:
-        if not self._entertainment_service:
-            return
-        visible = self._entertainment_service.funny_enabled
-        self._lucky_btn.visible = visible
-        self._stats_btn.visible = visible
-        self._lucky_btn.update()
-        self._stats_btn.update()
+        self._fun.update_funny_visibility([self._lucky_btn, self._stats_btn])
 
     def _try_update(self, ctrl: ft.Control) -> None:
         try:
@@ -1218,14 +1151,14 @@ class FileDisplay:
     def update_cat_icons(self) -> None:
         if not self._entertainment_service:
             return
-        is_cat = self._entertainment_service.cat_mode
-        self._save_btn.icon = ft.Icons.PETS if is_cat else ft.Icons.SAVE
-        self._multi_btn.icon = ft.Icons.PETS if is_cat else ft.Icons.SELECT_ALL
-        self._undo_btn.icon = ft.Icons.PETS if is_cat else ft.Icons.UNDO
-        self._redo_btn.icon = ft.Icons.PETS if is_cat else ft.Icons.REDO
-        self._lucky_btn.icon = ft.Icons.CASINO if not is_cat else ft.Icons.PETS
-        self._stats_btn.icon = ft.Icons.BAR_CHART if not is_cat else ft.Icons.PETS
-        self._search_field.icon = ft.Icons.PETS if is_cat else ft.Icons.SEARCH
+        is_cat = self._fun.is_cat()
+        self._save_btn.icon = self._fun.icon_for(ft.Icons.SAVE)
+        self._multi_btn.icon = self._fun.icon_for(ft.Icons.SELECT_ALL)
+        self._undo_btn.icon = self._fun.icon_for(ft.Icons.UNDO)
+        self._redo_btn.icon = self._fun.icon_for(ft.Icons.REDO)
+        self._lucky_btn.icon = self._fun.icon_for(ft.Icons.CASINO)
+        self._stats_btn.icon = self._fun.icon_for(ft.Icons.BAR_CHART)
+        self._search_field.icon = self._fun.icon_for(ft.Icons.SEARCH)
         for ctrl in (
             self._save_btn,
             self._multi_btn,
@@ -1250,136 +1183,17 @@ class FileDisplay:
             bp.set_cat_mode(is_cat)
 
     def _update_fab_icon(self) -> None:
-        if self._entertainment_service and self._entertainment_service.cat_mode:
-            self._fab.icon = ft.Icons.PETS
-        else:
-            self._fab.icon = ft.Icons.DELETE if self._shift_pressed else ft.Icons.ADD
+        self._fab.icon = self._fun.fab_icon(self._shift_pressed)
         self._try_update(self._fab)
 
     async def show_meow_popup(self) -> None:
-        meow = ft.Container(
-            content=ft.Text(
-                "Meow!",
-                size=36,
-                weight=ft.FontWeight.BOLD,
-                color=ft.Colors.PINK_ACCENT,
-            ),
-            bgcolor=ft.Colors.with_opacity(0.7, ft.Colors.WHITE),
-            border_radius=10,
-            padding=20,
-        )
-        self._page.overlay.append(meow)
-        self._page.update()
-        await asyncio.sleep(0.8)
-        try:
-            self._page.overlay.remove(meow)
-            self._page.update()
-        except ValueError:
-            pass
+        await self._fun.show_meow_popup()
 
     def _handle_post_save(self) -> None:
-        if not self._entertainment_service:
-            self._save_text.value = "Saved"
-            self._save_text.color = ft.Colors.GREEN
-            return
-
-        if self._entertainment_service.terminal_mode:
-            self._page.run_task(self._show_terminal_save)
-        elif self._entertainment_service.fun_save_messages:
-            self._save_text.value = self._entertainment_service.get_fun_save_message()
-            self._save_text.color = ft.Colors.GREEN
-        else:
-            self._save_text.value = "Saved"
-            self._save_text.color = ft.Colors.GREEN
-
-        if self._entertainment_service.show_meme_on_save:
-            self._page.run_task(self._show_meme_dialog)
-
-        if self._entertainment_service.cat_mode:
-            self._page.run_task(self.show_meow_popup)
-
-    async def _show_terminal_save(self) -> None:
-        lines = [
-            "> Saving types.xml...",
-            f"> Parsing {len(self._rows)} entries...",
-            "> Writing XML...",
-            "> Done. 0 errors, 0 warnings.",
-        ]
-        self._save_text.font_family = "monospace"
-        self._save_text.color = ft.Colors.GREEN_ACCENT_700
-        output_lines = []
-        for line in lines:
-            output_lines.append(line)
-            self._save_text.value = "\n".join(output_lines)
-            self._save_text.update()
-            await asyncio.sleep(0.35)
-        await asyncio.sleep(2)
-        self._save_text.font_family = None
-        self._save_text.value = "Saved"
-        self._save_text.color = ft.Colors.GREEN
-        self._save_text.update()
-
-    async def _show_meme_dialog(self) -> None:
-        url = None
-        try:
-            req = urllib.request.Request(
-                "https://meme-api.com/gimme",
-                headers={"User-Agent": "types-editor/0.2.1"},
-            )
-            with urllib.request.urlopen(req, timeout=5) as resp:
-                data = json.loads(resp.read().decode())
-            url = data.get("url") or data.get("preview", [None])[-1]
-        except Exception as ex:
-            logger.debug("Meme fetch failed: %s", ex)
-            return
-        if not url:
-            return
-        dialog = ft.AlertDialog(
-            title=ft.Text("Meme of the moment"),
-            content=ft.Column(
-                [
-                    ft.Image(
-                        src=url,
-                        height=300,
-                        fit=ft.ImageFit.CONTAIN,
-                    ),
-                ],
-                tight=True,
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-            ),
-            actions=[
-                ft.TextButton(
-                    "Close",
-                    on_click=lambda _: self._page.pop_dialog(),
-                )
-            ],
-        )
-        self._page.show_dialog(dialog)
-        self._page.update()
+        self._fun.handle_post_save(self._rows)
 
     def _on_stats_click(self, e: object) -> None:
-        if not self._entertainment_service:
-            return
-        text = self._entertainment_service.get_stats_text()
-        dialog = ft.AlertDialog(
-            title=ft.Text("Edit Statistics", weight=ft.FontWeight.BOLD),
-            content=ft.Container(
-                content=ft.Text(
-                    text,
-                    font_family="monospace",
-                    size=13,
-                ),
-                padding=10,
-            ),
-            actions=[
-                ft.TextButton(
-                    "Close",
-                    on_click=lambda _: self._page.pop_dialog(),
-                )
-            ],
-        )
-        self._page.show_dialog(dialog)
-        self._page.update()
+        self._fun.show_stats_dialog()
 
     def _on_lucky_click(self, e: object) -> None:
         dialog = ft.AlertDialog(
@@ -1421,11 +1235,7 @@ class FileDisplay:
         self._render_page()
         self.control.update()
 
-        phrase = (
-            self._entertainment_service.get_lucky_phrase()
-            if self._entertainment_service
-            else "Done!"
-        )
+        phrase = self._fun.lucky_phrase()
         success_dialog = ft.AlertDialog(
             title=ft.Text("Randomization Complete!"),
             content=ft.Text(phrase, size=16, weight=ft.FontWeight.BOLD),
@@ -1433,46 +1243,6 @@ class FileDisplay:
         )
         self._page.show_dialog(success_dialog)
         self._page.update()
-
-    async def _show_achievement_fireworks(self, threshold: int, name: str) -> None:
-        chars = ["*", "✦", "✧", "★", "☆"]
-        content_text = ft.Text(
-            "",
-            size=14,
-            text_align=ft.TextAlign.CENTER,
-            font_family="monospace",
-        )
-        total = (
-            self._entertainment_service.total_edits
-            if self._entertainment_service
-            else 0
-        )
-        dialog = ft.AlertDialog(
-            title=ft.Text(f"Achievement Unlocked: {name}!", weight=ft.FontWeight.BOLD),
-            content=ft.Column(
-                [
-                    ft.Text(f"{total} total edits", size=13, color=ft.Colors.GREY_600),
-                    ft.Divider(height=4),
-                    content_text,
-                ],
-                tight=True,
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-            ),
-            actions=[
-                ft.TextButton("Continue", on_click=lambda _: self._page.pop_dialog())
-            ],
-            actions_alignment=ft.MainAxisAlignment.CENTER,
-        )
-        self._page.show_dialog(dialog)
-        self._page.update()
-        for _ in range(15):
-            lines = "\n".join(
-                "  " + "".join(random.choice(chars) for _ in range(12)) + "  "
-                for _ in range(3)
-            )
-            content_text.value = lines
-            content_text.update()
-            await asyncio.sleep(0.15)
 
     def save_file(self) -> None:
         if self._text_mode:
