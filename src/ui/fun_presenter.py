@@ -211,7 +211,7 @@ class FunPresenter:
                     ft.Image(
                         src=url,
                         height=300,
-                        fit=ft.ImageFit.CONTAIN,
+                        fit=ft.BoxFit.CONTAIN,
                     ),
                 ],
                 tight=True,

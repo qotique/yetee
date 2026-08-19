@@ -7,32 +7,21 @@ from collections.abc import Callable
 
 from lxml import etree as ET
 
-from controllers.dirty_state_manager import DirtyStateManager
-from controllers.pagination_controller import PaginationController
-from controllers.commands import RandomizeCommand, SaveCommand
-from controllers.search_controller import (
-    EMPTY_CATEGORY_MARKER,
-    EMPTY_USAGE_MARKER,
-    EMPTY_VALUE_MARKER,
-    SearchController,
-)
+from controllers.file_session import FileSession
 from controllers.table_controller import (
     TableController,
     _collect_flag_names,
     PAGE_SIZE,
-    DEFAULT_FLAG_NAMES,
 )
 from models.field_def import (
     CATEGORIES,
     FieldDef,
-    STATIC_FIELD_DEFS,
     USAGES,
     VALUES_LIST,
 )
 from models.row_data import RowData
 from repository.file_cache import FileCache
 from repository.xml_repository import XmlRepository
-from models.undo_manager import UndoManager
 from protocols import IXmlRepository, IDetailPanel, IBatchPanel
 from services.entertainment_service import EntertainmentService
 from ui.batch_panel import BatchPanel
@@ -74,14 +63,14 @@ _TIPS = [
     "Value tiers (e.g., Tier1, Tier2, Tier3) determine rarity across loot zones",
     "Flags: Cargo = vehicle trunks, Map = ground spawns, Player = starter gear, Hoarder = stashes",
     "Category helps group items for mod compatibility and editor filters",
-    "Always set QuantMin and QuantMax to avoid over‑spawning in one container",
-    "Restock interval should be shorter for high‑traffic areas to keep loot fresh",
+    "Always set QuantMin and QuantMax to avoid over\u2011spawning in one container",
+    "Restock interval should be shorter for high\u2011traffic areas to keep loot fresh",
     "Use the search bar to quickly find items by partial name or type",
     "Consider testing changes on a separate server before deploying to production",
     "Copy existing item settings as a template for creating new items",
     "Different maps (Chernarus, Livonia) may use specific zone names like 'Airfield'",
-    "Nominal is a target – actual count fluctuates based on spawn chances",
-    "Low Cost gives higher spawn priority – reserve it for vital items",
+    "Nominal is a target \u2013 actual count fluctuates based on spawn chances",
+    "Low Cost gives higher spawn priority \u2013 reserve it for vital items",
     "Regularly review loot tables to prevent rare item inflation and performance issues",
 ]
 
@@ -98,25 +87,20 @@ class FileDisplay:
         batch_panel: IBatchPanel | None = None,
         entertainment_service: EntertainmentService | None = None,
         fun_presenter: FunPresenter | None = None,
+        session: FileSession | None = None,
     ):
         self._page = page
         self.cache = cache or FileCache()
         self.xml_repo = xml_repo or XmlRepository(cache=self.cache)
-        self._undo_mgr = UndoManager()
+        self._session = session or FileSession(self.xml_repo, self.cache)
         self._entertainment_service = entertainment_service
 
         self._table_ctrl = TableController(page)
-        self._pagination = PaginationController(PAGE_SIZE)
-        self._search = SearchController()
-        self._dirty_state = DirtyStateManager()
 
         self._search_task: asyncio.Task[None] | None = None
         self._tip_task: asyncio.Task[None] | None = None
         self._meow_task: asyncio.Task[None] | None = None
         self._meme_task: asyncio.Task[None] | None = None
-        self._path: str | None = None
-        self._rows: list[RowData] = []
-        self._filtered: list[int] = []
         self._text_mode: bool = False
         self._text_editor = ft.TextField(
             multiline=True,
@@ -132,8 +116,6 @@ class FileDisplay:
             selectable=True,
         )
 
-        self._selected_row_idx: int | None = None
-        self._selected_row_indices: set[int] = set()
         self._multi_select_mode: bool = False
         self._shift_pressed: bool = False
         self._mouse_down: bool = False
@@ -222,19 +204,19 @@ class FileDisplay:
                 key="category",
                 label="↑Category",
                 options=CATEGORIES,
-                empty_marker=EMPTY_CATEGORY_MARKER,
+                empty_marker="__empty__",
             ),
             FilterSpec(
                 key="usage",
                 label="↑Usage",
                 options=USAGES,
-                empty_marker=EMPTY_USAGE_MARKER,
+                empty_marker="__usage_empty__",
             ),
             FilterSpec(
                 key="value",
                 label="↑Value",
                 options=VALUES_LIST,
-                empty_marker=EMPTY_VALUE_MARKER,
+                empty_marker="__value_empty__",
             ),
         ]
         self._filter_menus: dict[str, FilterMenu] = {
@@ -420,22 +402,58 @@ class FileDisplay:
 
     @property
     def _dirty(self) -> bool:
-        return self._dirty_state.is_dirty
+        return self._session.dirty
 
     @_dirty.setter
     def _dirty(self, value: bool) -> None:
         if value:
-            self._dirty_state.mark_dirty()
+            self._session.mark_dirty()
         else:
-            self._dirty_state.mark_clean()
+            self._session.mark_clean()
 
     @property
     def _page_idx(self) -> int:
-        return self._pagination.page_index
+        return self._session.page_index
 
     @_page_idx.setter
     def _page_idx(self, value: int) -> None:
-        self._pagination.page_index = value
+        self._session.page_index = value
+
+    @property
+    def _rows(self) -> list[RowData]:
+        return self._session.rows
+
+    @_rows.setter
+    def _rows(self, value: list[RowData]) -> None:
+        self._session.rows = value
+
+    @property
+    def _filtered(self) -> list[int]:
+        return self._session.filtered
+
+    @property
+    def _path(self) -> str | None:
+        return self._session.path
+
+    @_path.setter
+    def _path(self, value: str | None) -> None:
+        self._session.path = value
+
+    @property
+    def _selected_row_idx(self) -> int | None:
+        return self._session.selected_row_idx
+
+    @_selected_row_idx.setter
+    def _selected_row_idx(self, value: int | None) -> None:
+        self._session.selected_row_idx = value
+
+    @property
+    def _selected_row_indices(self) -> set[int]:
+        return self._session.selected_row_indices
+
+    @_selected_row_indices.setter
+    def _selected_row_indices(self, value: set[int]) -> None:
+        self._session.selected_row_indices = value
 
     @property
     def _pool_fields(self) -> list[list[ft.Control]]:
@@ -492,19 +510,15 @@ class FileDisplay:
         self._text_mode = False
         self._text_container.visible = False
         self.control.content = self._keyboard_listener
-        self._path = path
+        self._session.load_setup(path)
         self._save_text.value = ""
-        self._pagination.reset()
-        self._search.reset()
         self._search_field.value = ""
         for menu in self._filter_menus.values():
             menu.clear()
-        self._dirty_state.reset()
-        self._undo_mgr.clear()
 
     def _load_finish(self) -> None:
-        self._undo_mgr.record(self._undo_mgr.take_snapshot(self._rows))
-        self._table_ctrl.flag_names = _collect_flag_names(self._rows)
+        self._session.record_undo()
+        self._table_ctrl.flag_names = _collect_flag_names(self._session.rows)
         self._table_ctrl.init_dynamic()
         self._batch_panel.hide()
         self._detail_panel.hide()
@@ -543,8 +557,7 @@ class FileDisplay:
         self.control.content = self._text_container
         self._text_container.visible = True
         self.control.visible = True
-        self._undo_mgr.clear()
-        self._dirty_state.reset()
+        self._session.reset_transient()
         logger.info("Loaded text file: %s", path)
 
     def load_file(self, path: str) -> None:
@@ -554,10 +567,10 @@ class FileDisplay:
             return
         self._text_mode = False
         try:
-            self._rows = self.xml_repo.parse_file(path)
+            self._session.rows = self.xml_repo.parse_file(path)
         except Exception as ex:
             logger.error("Error loading file %s: %s", path, ex)
-            self._undo_mgr.clear()
+            self._session.reset_transient()
             self.control.content = ft.Container(
                 content=ft.Text(f"Error parsing file: {ex}", selectable=True),
                 padding=10,
@@ -565,7 +578,7 @@ class FileDisplay:
             self.control.visible = True
             return
         self._load_finish()
-        logger.info("Loaded file: %s (%d rows)", path, len(self._rows))
+        logger.info("Loaded file: %s (%d rows)", path, len(self._session.rows))
 
     async def load_file_async(
         self,
@@ -585,10 +598,10 @@ class FileDisplay:
             return
         self._text_mode = False
         try:
-            self._rows = await self.xml_repo.parse_file_async(path)
+            self._session.rows = await self.xml_repo.parse_file_async(path)
         except Exception as ex:
             logger.error("Error loading file %s: %s", path, ex)
-            self._undo_mgr.clear()
+            self._session.reset_transient()
             self.control.content = ft.Container(
                 content=ft.Text(f"Error parsing file: {ex}", selectable=True),
                 padding=10,
@@ -607,19 +620,19 @@ class FileDisplay:
             return
         self._sync_detail_panel()
         self._sync_page_back()
-        if self._path is None:
+        if self._session.path is None:
             return
         try:
-            SaveCommand(self.xml_repo, self._path, self._rows).execute()
+            self._session.save()
             self._handle_post_save()
-            self._dirty_state.mark_clean()
-            logger.info("Saved %s", self._path)
+            self._session.mark_clean()
+            logger.info("Saved %s", self._session.path)
             if self.on_saved:
                 self.on_saved()
         except Exception as ex:
             self._save_text.value = f"Save error: {ex}"
             self._save_text.color = ft.Colors.RED
-            logger.error("Save failed for %s: %s", self._path, ex)
+            logger.error("Save failed for %s: %s", self._session.path, ex)
 
     async def _save_async(self) -> None:
         if self._text_mode:
@@ -627,51 +640,51 @@ class FileDisplay:
             return
         self._sync_detail_panel()
         self._sync_page_back()
-        if self._path is None:
+        if self._session.path is None:
             return
         try:
-            await SaveCommand(self.xml_repo, self._path, self._rows).execute_async()
+            await self._session.save_async()
             self._handle_post_save()
-            self._dirty_state.mark_clean()
-            logger.info("Saved (async) %s", self._path)
+            self._session.mark_clean()
+            logger.info("Saved (async) %s", self._session.path)
             if self.on_saved:
                 self.on_saved()
         except Exception as ex:
             self._save_text.value = f"Save error: {ex}"
             self._save_text.color = ft.Colors.RED
-            logger.error("Save failed for %s: %s", self._path, ex)
+            logger.error("Save failed for %s: %s", self._session.path, ex)
         self.control.update()
 
     def _on_text_change(self, e: object) -> None:
-        self._dirty_state.mark_dirty()
+        self._session.mark_dirty()
         if self._save_text.value:
             self._save_text.value = ""
             self._save_text.color = None
 
     def _save_text_file(self) -> bool:
-        if self._path is None:
+        if self._session.path is None:
             return True
         try:
-            with open(self._path, "w", encoding="utf-8") as f:
+            with open(self._session.path, "w", encoding="utf-8") as f:
                 f.write(self._text_editor.value)
             self._save_text.value = ""
-            self._dirty_state.mark_clean()
-            logger.info("Saved text file %s", self._path)
+            self._session.mark_clean()
+            logger.info("Saved text file %s", self._session.path)
             if self.on_saved:
                 self.on_saved()
             return True
         except OSError as ex:
             self._save_text.value = f"Save error: {ex}"
             self._save_text.color = ft.Colors.RED
-            logger.error("Save failed for %s: %s", self._path, ex)
+            logger.error("Save failed for %s: %s", self._session.path, ex)
             return False
 
     def _on_field_change(self, e: object) -> None:
-        self._dirty_state.mark_dirty()
+        self._session.mark_dirty()
         self._fun.on_field_change(e)
 
     def _on_fab_click(self, e: object) -> None:
-        if self._path is None:
+        if self._session.path is None:
             return
         if self._shift_pressed:
             self._delete_selected()
@@ -680,40 +693,23 @@ class FileDisplay:
 
     def _add_type(self) -> None:
         self._sync_detail_panel()
-
-        tree = self.cache.get_tree(self._path)
-        if tree is None:
+        if not self._session.add_type():
             return
-        root = tree.getroot()
-
-        new_elem = ET.SubElement(root, "type")
-        new_elem.set("name", "")
-
-        new_row = RowData(values={}, flags={}, elem=new_elem)
-        for fd in STATIC_FIELD_DEFS:
-            new_row.values[fd.key] = "" if fd.key == "name" else "0"
-        for fn in DEFAULT_FLAG_NAMES:
-            new_row.flags[fn] = "0"
-
-        self._undo_mgr.record(self._undo_mgr.take_snapshot(self._rows))
-        self._rows.insert(0, new_row)
         self._apply_filter(self._search_field.value or "")
-        self._selected_row_idx = 0
-        self._selected_row_indices = {0}
-        self._pagination.reset()
-        self._dirty_state.mark_dirty()
+        self._session.selected_row_idx = 0
+        self._session.selected_row_indices = {0}
         self._render_page()
         self._load_detail_panel()
         self._update_detail_panel()
         self.control.update()
 
     def _delete_selected(self) -> None:
-        if not self._selected_row_indices:
+        if not self._session.selected_row_indices:
             return
 
         names = [
-            self._rows[idx].values.get("name", "") or "(unnamed)"
-            for idx in sorted(self._selected_row_indices)
+            self._session.rows[idx].values.get("name", "") or "(unnamed)"
+            for idx in sorted(self._session.selected_row_indices)
         ]
 
         def _reset_shift(ev: object) -> None:
@@ -753,29 +749,17 @@ class FileDisplay:
         self._page.update()
 
     def _perform_delete(self) -> None:
-        if not self._selected_row_indices:
+        if not self._session.selected_row_indices:
             return
 
         self._sync_detail_panel()
         self._sync_page_back()
 
-        tree = self.cache.get_tree(self._path)
-        if tree is None:
+        if not self._session.delete_selected():
             return
-        root = tree.getroot()
-
-        self._undo_mgr.record(self._undo_mgr.take_snapshot(self._rows))
-
-        for idx in sorted(self._selected_row_indices, reverse=True):
-            row = self._rows[idx]
-            if row.elem is not None:
-                root.remove(row.elem)
-            del self._rows[idx]
 
         self._clear_selection()
         self._apply_filter(self._search_field.value or "")
-        self._pagination.clamp(len(self._filtered))
-        self._dirty_state.mark_dirty()
         self._render_page()
         self.control.update()
 
@@ -809,10 +793,10 @@ class FileDisplay:
         self._multi_btn.update()
 
     def _on_row_click(self, pool_slot: int) -> None:
-        start = self._pagination.page_index * PAGE_SIZE
+        start = self._session.page_index * PAGE_SIZE
         actual_idx = (
-            self._filtered[start + pool_slot]
-            if start + pool_slot < len(self._filtered)
+            self._session.filtered[start + pool_slot]
+            if start + pool_slot < len(self._session.filtered)
             else -1
         )
         if actual_idx < 0:
@@ -828,16 +812,16 @@ class FileDisplay:
         self._sync_page_back()
         self._sync_detail_panel()
         if self._shift_pressed or self._multi_select_mode:
-            if actual_idx in self._selected_row_indices:
-                self._selected_row_indices.discard(actual_idx)
+            if actual_idx in self._session.selected_row_indices:
+                self._session.selected_row_indices.discard(actual_idx)
             else:
-                self._selected_row_indices.add(actual_idx)
-                self._selected_row_idx = actual_idx
-            if len(self._selected_row_indices) == 1:
+                self._session.selected_row_indices.add(actual_idx)
+                self._session.selected_row_idx = actual_idx
+            if len(self._session.selected_row_indices) == 1:
                 self._load_detail_panel()
         else:
-            self._selected_row_indices = {actual_idx}
-            self._selected_row_idx = actual_idx
+            self._session.selected_row_indices = {actual_idx}
+            self._session.selected_row_idx = actual_idx
             self._load_detail_panel()
         self._update_detail_panel()
         self._render_page()
@@ -852,40 +836,42 @@ class FileDisplay:
             return
         if not self._shift_pressed or not self._mouse_down:
             return
-        start = self._pagination.page_index * PAGE_SIZE
+        start = self._session.page_index * PAGE_SIZE
 
         if self._drag_start_slot is not None:
             start_idx = (
-                self._filtered[start + self._drag_start_slot]
-                if start + self._drag_start_slot < len(self._filtered)
+                self._session.filtered[start + self._drag_start_slot]
+                if start + self._drag_start_slot < len(self._session.filtered)
                 else -1
             )
             self._drag_start_slot = None
-            if start_idx >= 0 and start_idx not in self._selected_row_indices:
-                self._selected_row_indices.add(start_idx)
-                self._selected_row_idx = start_idx
+            if start_idx >= 0 and start_idx not in self._session.selected_row_indices:
+                self._session.selected_row_indices.add(start_idx)
+                self._session.selected_row_idx = start_idx
                 self._render_page()
                 self.control.update()
 
         actual_idx = (
-            self._filtered[start + pool_slot]
-            if start + pool_slot < len(self._filtered)
+            self._session.filtered[start + pool_slot]
+            if start + pool_slot < len(self._session.filtered)
             else -1
         )
-        if actual_idx < 0 or actual_idx in self._selected_row_indices:
+        if actual_idx < 0 or actual_idx in self._session.selected_row_indices:
             return
         self._sync_page_back()
         self._sync_detail_panel()
-        self._selected_row_indices.add(actual_idx)
-        self._selected_row_idx = actual_idx
+        self._session.selected_row_indices.add(actual_idx)
+        self._session.selected_row_idx = actual_idx
         self._load_detail_panel()
         self._update_detail_panel()
         self._render_page()
         self.control.update()
 
     def _sync_detail_panel(self) -> None:
-        if self._selected_row_idx is not None and len(self._selected_row_indices) <= 1:
-            self._undo_mgr.record(self._undo_mgr.take_snapshot(self._rows))
+        if self._session.selected_row_idx is not None and len(
+            self._session.selected_row_indices
+        ) <= 1:
+            self._session.record_undo()
             if hasattr(self._detail_panel, "_usage_chipset") and hasattr(
                 self._detail_panel, "_value_chipset"
             ):
@@ -902,29 +888,33 @@ class FileDisplay:
                 if usage_chipset and value_chipset:
                     usage = ", ".join(usage_chipset.get_values())
                     value = ", ".join(value_chipset.get_values())
-                    self._rows[self._selected_row_idx].values["usage"] = usage
-                    self._rows[self._selected_row_idx].values["value"] = value
+                    self._session.rows[self._session.selected_row_idx].values[
+                        "usage"
+                    ] = usage
+                    self._session.rows[self._session.selected_row_idx].values[
+                        "value"
+                    ] = value
                     if usage or value:
-                        self._dirty_state.mark_dirty()
+                        self._session.mark_dirty()
 
     def _update_detail_panel(self) -> None:
-        if len(self._selected_row_indices) >= 2:
+        if len(self._session.selected_row_indices) >= 2:
             self._batch_panel.show(
-                f"Batch edit: {len(self._selected_row_indices)} rows selected",
+                f"Batch edit: {len(self._session.selected_row_indices)} rows selected",
                 USAGES,
                 VALUES_LIST,
                 self._table_ctrl.flag_names,
             )
             self._detail_container.content = self._batch_panel.build()
-        elif len(self._selected_row_indices) == 1:
+        elif len(self._session.selected_row_indices) == 1:
             self._detail_container.content = self._detail_panel.build()
         else:
             self._detail_container.content = self._detail_placeholder
 
     def _load_detail_panel(self) -> None:
-        if self._selected_row_idx is None:
+        if self._session.selected_row_idx is None:
             return
-        row = self._rows[self._selected_row_idx]
+        row = self._session.rows[self._session.selected_row_idx]
         self._detail_panel.show(row, USAGES, VALUES_LIST)
 
     def _on_detail_usage_add(self, v: str) -> None:
@@ -964,42 +954,35 @@ class FileDisplay:
             self._batch_apply_field(key)
 
     def _batch_apply_field(self, field_key: str) -> None:
-        self._undo_mgr.record(self._undo_mgr.take_snapshot(self._rows))
         self._sync_page_back()
         w = self._batch_fields.get(field_key)
         if w is None:
             return
         value = w.value or ""
-        for idx in self._selected_row_indices:
-            self._rows[idx].values[field_key] = value
+        self._session.batch_apply_field(field_key, value)
         label = "Category" if field_key == "category" else field_key
         self._finish_batch_apply(label)
 
     def _batch_apply_chipset(self, column_key: str) -> None:
-        self._undo_mgr.record(self._undo_mgr.take_snapshot(self._rows))
         self._sync_page_back()
         chipset = getattr(self._batch_panel, f"_{column_key}_chipset", None)
         parts = ", ".join(chipset.get_values()) if chipset else ""
-        for idx in self._selected_row_indices:
-            self._rows[idx].values[column_key] = parts
+        self._session.batch_apply_chipset(column_key, parts)
         self._finish_batch_apply(column_key.capitalize())
 
     def _batch_apply_flag(self, flag_name: str) -> None:
-        self._undo_mgr.record(self._undo_mgr.take_snapshot(self._rows))
         self._sync_page_back()
         cb = self._batch_flag_checkboxes.get(flag_name)
         if cb is None:
             return
         value = "1" if cb.value else "0"
-        for idx in self._selected_row_indices:
-            self._rows[idx].flags[flag_name] = value
+        self._session.batch_apply_flag(flag_name, value)
         self._finish_batch_apply(flag_name)
 
     def _finish_batch_apply(self, label: str) -> None:
-        self._dirty_state.mark_dirty()
         self._render_page()
         self._save_text.value = (
-            f"{label} applied to {len(self._selected_row_indices)} rows"
+            f"{label} applied to {len(self._session.selected_row_indices)} rows"
         )
         self._save_text.color = ft.Colors.GREEN
         self.control.update()
@@ -1011,14 +994,13 @@ class FileDisplay:
         self._mouse_down = False
         self._detail_panel.hide()
         self._detail_container.content = self._detail_placeholder
-        self._selected_row_idx = None
-        self._selected_row_indices.clear()
+        self._session.clear_selection()
 
     def _prev_page(self, e: object) -> None:
         self._sync_detail_panel()
         self._sync_page_back()
         self._clear_selection()
-        self._pagination.prev_page(len(self._filtered))
+        self._session.prev_page()
         self._render_page()
         self.control.update()
 
@@ -1026,29 +1008,26 @@ class FileDisplay:
         self._sync_detail_panel()
         self._sync_page_back()
         self._clear_selection()
-        self._pagination.next_page(len(self._filtered))
+        self._session.next_page()
         self._render_page()
         self.control.update()
 
     def _apply_filter(self, query: str) -> None:
-        self._search.set_search(
+        self._session.apply_filter(
             query,
             case_sensitive=self._case_sensitive_checkbox.value,
-        )
-        self._search.set_filters(
-            {
+            filters={
                 key: menu.filter_value()
                 for key, menu in self._filter_menus.items()
-            }
+            },
         )
-        self._filtered = self._search.filter_rows(self._rows)
 
     def _on_search(self, e: object) -> None:
         self._sync_detail_panel()
         self._sync_page_back()
         query = (self._search_field.value or "").strip()
         self._apply_filter(query)
-        self._pagination.reset()
+        self._session.reset_page()
         self._render_page()
         self.control.update()
 
@@ -1073,69 +1052,69 @@ class FileDisplay:
         self._on_search(None)
 
     def _render_page(self) -> None:
-        total = len(self._filtered)
-        total_pages = self._pagination.total_pages(total)
-        self._pagination.clamp(total)
+        total = len(self._session.filtered)
+        total_pages = self._session.total_pages()
+        self._session.clamp()
 
-        self._dirty_state.set_syncing(True)
+        self._session.set_syncing(True)
         self._table_ctrl.render(
-            self._rows,
-            self._filtered,
-            self._pagination.page_index,
-            self._selected_row_indices,
+            self._session.rows,
+            self._session.filtered,
+            self._session.page_index,
+            self._session.selected_row_indices,
         )
-        self._dirty_state.set_syncing(False)
+        self._session.set_syncing(False)
 
         self._page_info.value = (
-            f"Page {self._pagination.page_index + 1}/{total_pages}  ({total} rows)"
+            f"Page {self._session.page_index + 1}/{total_pages}  ({total} rows)"
         )
-        self._prev_btn.disabled = self._pagination.page_index <= 0
-        self._next_btn.disabled = self._pagination.page_index >= total_pages - 1
+        self._prev_btn.disabled = self._session.page_index <= 0
+        self._next_btn.disabled = self._session.page_index >= total_pages - 1
 
     def _sync_page_back(self) -> None:
-        if self._path is None or not self._dirty_state.is_dirty:
+        if self._session.path is None or not self._session.dirty:
             return
-        self._undo_mgr.record(self._undo_mgr.take_snapshot(self._rows))
+        self._session.record_undo()
         self._table_ctrl.sync_back(
-            self._rows, self._filtered, self._pagination.page_index
+            self._session.rows,
+            self._session.filtered,
+            self._session.page_index,
         )
-        self._dirty_state.mark_clean()
+        self._session.mark_clean()
 
     def _sync_widgets_to_rows(self) -> None:
-        if self._path is None or not self._dirty_state.is_dirty:
+        if self._session.path is None or not self._session.dirty:
             return
         self._table_ctrl.sync_back(
-            self._rows, self._filtered, self._pagination.page_index
+            self._session.rows,
+            self._session.filtered,
+            self._session.page_index,
         )
-        self._dirty_state.mark_clean()
-
-    def _get_root(self) -> ET.Element | None:
-        tree = self.cache.get_tree(self._path)
-        return tree.getroot() if tree is not None else None
+        self._session.mark_clean()
 
     def _on_undo(self, e: object) -> None:
         self._sync_widgets_to_rows()
-        if self._undo_mgr.undo(self._rows, root=self._get_root()):
-            self._dirty_state.mark_dirty()
+        if self._session.undo():
+            self._session.mark_dirty()
             self._clear_selection()
-            self._filtered = self._search.filter_rows(self._rows)
+            self._session.refilter()
             self._render_page()
             self._refresh_button_states()
             self.control.update()
 
     def _on_redo(self, e: object) -> None:
         self._sync_widgets_to_rows()
-        if self._undo_mgr.redo(self._rows, root=self._get_root()):
-            self._dirty_state.mark_dirty()
+        if self._session.redo():
+            self._session.mark_dirty()
             self._clear_selection()
-            self._filtered = self._search.filter_rows(self._rows)
+            self._session.refilter()
             self._render_page()
             self._refresh_button_states()
             self.control.update()
 
     def _refresh_button_states(self) -> None:
-        self._undo_btn.disabled = not self._undo_mgr.can_undo
-        self._redo_btn.disabled = not self._undo_mgr.can_redo
+        self._undo_btn.disabled = not self._session.can_undo
+        self._redo_btn.disabled = not self._session.can_redo
         self._undo_btn.update()
         self._redo_btn.update()
 
@@ -1190,7 +1169,7 @@ class FileDisplay:
         await self._fun.show_meow_popup()
 
     def _handle_post_save(self) -> None:
-        self._fun.handle_post_save(self._rows)
+        self._fun.handle_post_save(self._session.rows)
 
     def _on_stats_click(self, e: object) -> None:
         self._fun.show_stats_dialog()
@@ -1221,17 +1200,14 @@ class FileDisplay:
         self._page.pop_dialog()
         self._sync_detail_panel()
         self._sync_page_back()
-        self._undo_mgr.record(self._undo_mgr.take_snapshot(self._rows))
 
         target_indices = (
-            self._selected_row_indices
-            if self._selected_row_indices
-            else set(range(len(self._rows)))
+            self._session.selected_row_indices
+            if self._session.selected_row_indices
+            else set(range(len(self._session.rows)))
         )
-        RandomizeCommand(self._rows, target_indices).execute()
+        self._session.randomize(target_indices)
 
-        self._dirty_state.mark_dirty()
-        self._filtered = self._search.filter_rows(self._rows)
         self._render_page()
         self.control.update()
 
@@ -1250,12 +1226,12 @@ class FileDisplay:
             return
         self._sync_detail_panel()
         self._sync_page_back()
-        if self._path is not None:
+        if self._session.path is not None:
             try:
-                SaveCommand(self.xml_repo, self._path, self._rows).execute()
-                self._dirty_state.mark_clean()
+                self._session.save()
+                self._session.mark_clean()
             except Exception as ex:
-                logger.error("Auto-save failed for %s: %s", self._path, ex)
+                logger.error("Auto-save failed for %s: %s", self._session.path, ex)
             if self.on_saved:
                 self.on_saved()
 
@@ -1263,9 +1239,7 @@ class FileDisplay:
         self.xml_repo.invalidate_cache(path)
 
     def clear(self) -> None:
-        self._path = None
-        self._rows = []
-        self._filtered = []
+        self._session.clear_all()
         self._text_mode = False
         self._text_container.visible = False
         self.control.content = self._keyboard_listener
@@ -1274,11 +1248,6 @@ class FileDisplay:
         for menu in self._filter_menus.values():
             menu.clear()
         self.control.visible = False
-        self._dirty_state.reset()
-        self._pagination.reset()
-        self._search.reset()
-        self._selected_row_idx = None
-        self._selected_row_indices.clear()
         self._detail_panel.hide()
         self._detail_container.content = self._detail_placeholder
         self._batch_panel.hide()
