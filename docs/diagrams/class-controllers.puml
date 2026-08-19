@@ -47,12 +47,43 @@ class RowSnapshot {
   flags : dict[str,str]
 }
 
+class FileSession {
+  + path : str | None
+  + rows : list[RowData]
+  + filtered : list[int]
+  + selected_row_idx : int | None
+  + selected_row_indices : set[int]
+  + dirty : bool (ro)
+  + page_index : int
+  + can_undo / can_redo : bool (ro)
+  + load_setup(path) / clear_all()
+  + apply_filter(query, case_sensitive, filters)
+  + refilter() / reset_page() / prev_page() / next_page() / clamp()
+  + add_type() : bool
+  + delete_selected() : bool
+  + randomize(indices)
+  + batch_apply_field(key, value) / batch_apply_chipset(key, parts) / batch_apply_flag(name, value)
+  + undo() / redo() : bool
+  + save() / save_async()
+}
+class RandomizeCommand {
+  + execute()
+}
+class SaveCommand {
+  + execute() / execute_async()
+}
+
 ' FileDisplay and EventDisplay reuse several controllers
+FileDisplay ..> FileSession
 FileDisplay ..> TableController
-FileDisplay ..> SearchController
-FileDisplay ..> PaginationController
-FileDisplay ..> DirtyStateManager
-FileDisplay ..> UndoManager
+FileDisplay ..> FilterMenu
+FileDisplay ..> FunPresenter
+FileSession ..> SearchController
+FileSession ..> PaginationController
+FileSession ..> DirtyStateManager
+FileSession ..> UndoManager
+FileSession ..> RandomizeCommand
+FileSession ..> SaveCommand
 EventDisplay ..> TableController
 EventDisplay ..> UndoManager
 

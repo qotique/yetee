@@ -10,7 +10,11 @@ package "src.connection.ssh_connection" as src.connection.ssh_connection {
 }
 package "src.controllers" as src.controllers {
 }
+package "src.controllers.commands" as src.controllers.commands {
+}
 package "src.controllers.dirty_state_manager" as src.controllers.dirty_state_manager {
+}
+package "src.controllers.file_session" as src.controllers.file_session {
 }
 package "src.controllers.pagination_controller" as src.controllers.pagination_controller {
 }
@@ -102,6 +106,10 @@ package "src.ui.detail_panel" as src.ui.detail_panel {
 }
 package "src.ui.economy_editor" as src.ui.economy_editor {
 }
+package "src.ui.filter_menu" as src.ui.filter_menu {
+}
+package "src.ui.fun_presenter" as src.ui.fun_presenter {
+}
 package "src.unavailable_display" as src.unavailable_display {
 }
 src.custom_entities --> src.models.field_def
@@ -141,19 +149,18 @@ src.event_display --> src.services.entertainment_service
 src.expansion --> src.custom_entities
 src.expansion --> src.form_schema
 src.expansion --> src.models.field_def
-src.file_display --> src.controllers.dirty_state_manager
-src.file_display --> src.controllers.pagination_controller
-src.file_display --> src.controllers.search_controller
+src.file_display --> src.controllers.file_session
 src.file_display --> src.controllers.table_controller
 src.file_display --> src.models.field_def
 src.file_display --> src.models.row_data
-src.file_display --> src.models.undo_manager
 src.file_display --> src.protocols
 src.file_display --> src.repository.file_cache
 src.file_display --> src.repository.xml_repository
 src.file_display --> src.services.entertainment_service
 src.file_display --> src.ui.batch_panel
 src.file_display --> src.ui.detail_panel
+src.file_display --> src.ui.filter_menu
+src.file_display --> src.ui.fun_presenter
 src.form_display --> src.exceptions
 src.form_display --> src.form_schema
 src.form_display --> src.models.field_def
