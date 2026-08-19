@@ -12,6 +12,7 @@ from lxml import etree as ET
 
 from controllers.dirty_state_manager import DirtyStateManager
 from controllers.pagination_controller import PaginationController
+from controllers.commands import RandomizeCommand, SaveCommand
 from controllers.search_controller import (
     EMPTY_CATEGORY_MARKER,
     EMPTY_USAGE_MARKER,
@@ -604,7 +605,7 @@ class FileDisplay:
         if self._path is None:
             return
         try:
-            self.xml_repo.save(self._path, self._rows)
+            SaveCommand(self.xml_repo, self._path, self._rows).execute()
             self._handle_post_save()
             self._dirty_state.mark_clean()
             logger.info("Saved %s", self._path)
@@ -624,7 +625,7 @@ class FileDisplay:
         if self._path is None:
             return
         try:
-            await self.xml_repo.save_async(self._path, self._rows)
+            await SaveCommand(self.xml_repo, self._path, self._rows).execute_async()
             self._handle_post_save()
             self._dirty_state.mark_clean()
             logger.info("Saved (async) %s", self._path)
@@ -1413,47 +1414,7 @@ class FileDisplay:
             if self._selected_row_indices
             else set(range(len(self._rows)))
         )
-        for idx in target_indices:
-            row = self._rows[idx]
-            row.values["nominal"] = str(random.randint(1, 200))
-            row.values["lifetime"] = str(
-                random.choice(
-                    [
-                        300,
-                        600,
-                        1800,
-                        3600,
-                        7200,
-                        14400,
-                        28800,
-                        43200,
-                        86400,
-                    ]
-                )
-            )
-            row.values["restock"] = str(
-                random.choice(
-                    [
-                        60,
-                        120,
-                        300,
-                        600,
-                        900,
-                        1800,
-                        3600,
-                        7200,
-                    ]
-                )
-            )
-            row.values["min"] = str(random.randint(0, 50))
-            row.values["quantmin"] = str(random.randint(-1, 10))
-            row.values["quantmax"] = str(random.randint(1, 50))
-            row.values["cost"] = str(random.randint(-1, 500))
-            row.values["category"] = random.choice(CATEGORIES)
-            row.values["usage"] = ", ".join(random.sample(USAGES, random.randint(1, 3)))
-            row.values["value"] = random.choice(VALUES_LIST)
-            for flag in row.flags:
-                row.flags[flag] = random.choice(["0", "1"])
+        RandomizeCommand(self._rows, target_indices).execute()
 
         self._dirty_state.mark_dirty()
         self._filtered = self._search.filter_rows(self._rows)
@@ -1521,7 +1482,7 @@ class FileDisplay:
         self._sync_page_back()
         if self._path is not None:
             try:
-                self.xml_repo.save(self._path, self._rows)
+                SaveCommand(self.xml_repo, self._path, self._rows).execute()
                 self._dirty_state.mark_clean()
             except Exception as ex:
                 logger.error("Auto-save failed for %s: %s", self._path, ex)
