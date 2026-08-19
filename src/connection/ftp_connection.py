@@ -6,13 +6,13 @@ from typing import Any
 
 import aioftp
 
-from exceptions import (
+from core.exceptions import (
     RemoteAuthError,
     RemoteConnectionError,
     RemoteTimeoutError,
 )
 from models.connection import ConnectionConfig
-from protocols import IRemoteConnection
+from core.protocols import IRemoteConnection
 
 logger = logging.getLogger(__name__)
 

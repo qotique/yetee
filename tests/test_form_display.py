@@ -7,8 +7,8 @@ from unittest.mock import MagicMock
 import flet as ft
 import pytest
 
-from form_display import FormDisplay
-from form_schema import (
+from ui.form_display import FormDisplay
+from models.form_schema import (
     FormDict,
     FormField,
     FormGrid,

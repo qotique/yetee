@@ -66,7 +66,6 @@ jobs:
             --collect-all asyncssh \
             --collect-all aioftp \
             --add-data "src/main.py:." \
-            --add-data "src/file_display.py:." \
             --add-data "src/assets:assets" \
             --add-data "flet-linux-${DISTRO}-light-amd64.tar.gz:flet_desktop/app" \
             src/main.py
@@ -105,7 +104,6 @@ jobs:
             --collect-all asyncssh `
             --collect-all aioftp `
             --add-data "src/main.py;." `
-            --add-data "src/file_display.py;." `
             --add-data "src/assets;assets" `
             --add-data "flet-windows.zip;flet_desktop/app" `
             src/main.py

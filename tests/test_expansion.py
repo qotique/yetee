@@ -6,13 +6,13 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from custom_entities import _CUSTOM_ENTITIES, get_columns, get_renderer
-from expansion import register_entity  # noqa: F401  (registers at import)
+from models.custom_entities import _CUSTOM_ENTITIES, get_columns, get_renderer
+from models.expansion import register_entity  # noqa: F401  (registers at import)
 from models.field_def import FieldType
 from models.project import Project
 from services.economy_service import EconomyService
 from services.profile_service import ProfileService
-from unavailable_display import UnavailableDisplay
+from ui.unavailable_display import UnavailableDisplay
 from ui.economy_editor import EconomyEditor
 
 

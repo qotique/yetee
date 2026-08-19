@@ -10,7 +10,7 @@ import keyring
 
 from connection.connection_factory import create_connection
 from models.connection import ConnectionConfig
-from protocols import IRemoteConnection
+from core.protocols import IRemoteConnection
 from repository.connection_repository import ConnectionRepository
 
 logger = logging.getLogger(__name__)

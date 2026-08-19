@@ -5,7 +5,7 @@ from __future__ import annotations
 from lxml import etree as ET
 
 from controllers.table_controller import _collect_flag_names
-from file_display import FileDisplay
+from ui.file_display import FileDisplay
 from repository.xml_utils import elem_text
 
 
