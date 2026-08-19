@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from mod_handlers import (
+from models.mod_handlers import (
     AS_Mods,
     CommunityOnlineTools,
     NotYetAvailableMod,
@@ -12,7 +12,7 @@ from mod_handlers import (
     get_mod_handler,
     is_not_yet_available,
 )
-from custom_entities import RENDERER_TXT
+from models.custom_entities import RENDERER_TXT
 
 EXPECTED_MODS = {
     "TraderX",

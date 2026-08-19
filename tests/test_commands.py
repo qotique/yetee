@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, Mock
 
 from controllers.commands import LIFETIME_OPTIONS, RESTOCK_OPTIONS, RandomizeCommand, SaveCommand
 from models.row_data import RowData
-from protocols import IXmlRepository
+from core.protocols import IXmlRepository
 
 
 def _row() -> RowData:

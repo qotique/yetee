@@ -2,11 +2,11 @@
 
 The diagram shows who builds whom (assembling) and the data flow from the entry
 point down to the stores. All high-level entities are wired in the composition
-root `src/di.py` (`create_app_services`).
+root `src/core/di.py` (`create_app_services`).
 
 Диаграмма показывает, кто кого создаёт (assembling) и поток данных от точки
 входа до хранилищ. Все высокоуровневые сущности собираются в composition root
-`src/di.py` (`create_app_services`).
+`src/core/di.py` (`create_app_services`).
 
 > The remote-sync layer (`ConnectionManager`, `RemoteSyncService`, SSH/FTP) is
 > part of the `issue/25` branch (SSH/FTP connections).
@@ -23,11 +23,11 @@ flowchart TB
 
     subgraph ui["UI"]
         ee["EconomyEditor (src/ui/economy_editor.py)"]
-        fd["FileDisplay (src/file_display.py)"]
-        evd["EventDisplay (src/event_display.py)"]
-        std["SettingsTableDisplay (src/settings_table_display.py)"]
-        fmd["FormDisplay (src/form_display.py)"]
-        uav["UnavailableDisplay (src/unavailable_display.py)"]
+        fd["FileDisplay (src/ui/file_display.py)"]
+        evd["EventDisplay (src/ui/event_display.py)"]
+        std["SettingsTableDisplay (src/ui/settings_table_display.py)"]
+        fmd["FormDisplay (src/ui/form_display.py)"]
+        uav["UnavailableDisplay (src/ui/unavailable_display.py)"]
         dp["DetailPanel ✓ ui/detail_panel.py"]
         bp["BatchPanel ✓ ui/batch_panel.py"]
         cs["ChipSet ✓ ui/chip_set.py"]
@@ -65,10 +65,10 @@ flowchart TB
     end
 
     subgraph schema["Schema (code module)"]
-        cent["src/custom_entities.py"]
-        exp["src/expansion.py (Expansion Mod entities)"]
-        fschema["src/form_schema.py (FormSchema tree + registry)"]
-        modh["src/mod_handlers.py (NotYetAvailableMod registry)"]
+        cent["src/models/custom_entities.py"]
+        exp["src/models/expansion.py (Expansion Mod entities)"]
+        fschema["src/models/form_schema.py (FormSchema tree + registry)"]
+        modh["src/models/mod_handlers.py (NotYetAvailableMod registry)"]
     end
 
     subgraph models["Models"]

@@ -22,7 +22,7 @@ from models.field_def import (
 from models.row_data import RowData
 from repository.file_cache import FileCache
 from repository.xml_repository import XmlRepository
-from protocols import IXmlRepository, IDetailPanel, IBatchPanel
+from core.protocols import IXmlRepository, IDetailPanel, IBatchPanel
 from services.entertainment_service import EntertainmentService
 from ui.batch_panel import BatchPanel
 from ui.detail_panel import DetailPanel

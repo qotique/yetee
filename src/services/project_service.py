@@ -6,7 +6,7 @@ import os
 import time
 from pathlib import Path
 
-from exceptions import AccessError
+from core.exceptions import AccessError
 from models.project import Project
 
 logger = logging.getLogger(__name__)

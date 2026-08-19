@@ -8,8 +8,8 @@ from concurrent.futures import ThreadPoolExecutor
 import flet as ft
 
 from controllers.table_controller import PAGE_SIZE, TableController
-from custom_entities import get_columns, get_renderer
-from exceptions import AccessError, ParseError
+from models.custom_entities import get_columns, get_renderer
+from core.exceptions import AccessError, ParseError
 from models.field_def import FieldDef
 from models.row_data import RowData
 from repository.settings_repository import JsonSettingsRepository, XmlSettingsRepository
@@ -39,7 +39,7 @@ class SettingsTableDisplay:
     """Generic display for custom entities.
 
     Renders .xml / .json files as an editable settings table (auto-detected
-    columns, optionally overridden by a schema in ``custom_entities.py``) and
+    columns, optionally overridden by a schema in ``models/custom_entities.py``) and
     .txt files as a raw text editor. Exposes the same public surface as
     ``FileDisplay`` so it can be used as an ``_EntityConfig.display``.
     """

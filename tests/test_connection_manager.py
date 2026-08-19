@@ -3,12 +3,12 @@ import os
 
 import pytest
 
-from exceptions import RemoteConnectionError
+from core.exceptions import RemoteConnectionError
 
 from connection.connection_factory import create_connection, register_connection
 from models.connection import ConnectionConfig
 from models.project import Project
-from protocols import IRemoteConnection
+from core.protocols import IRemoteConnection
 from repository.connection_repository import ConnectionRepository
 from services.connection_manager import ConnectionManager
 from services.remote_sync_service import RemoteSyncService

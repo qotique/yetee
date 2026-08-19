@@ -111,7 +111,7 @@ Notes / Пояснения:
   into an entity, collecting `.xml/.json/.txt` files recursively from it.
 - Custom entity files are rendered by `SettingsTableDisplay` (generic settings
   table for XML/JSON + raw text for TXT). Renderer and optional columns are
-  declared per file in `src/custom_entities.py`; when no columns are declared,
+  declared per file in `src/models/custom_entities.py`; when no columns are declared,
   they are auto-detected from the XML/JSON structure. `ConnectionConfig.remote_profiles_dir`
   makes the profiles tree part of SSH/FTP sync (downloaded to the local
   `~/.yetee/workspace/<id>/profiles` and uploaded back on save).
@@ -121,7 +121,7 @@ Notes / Пояснения:
   (byte-throughput model) to estimate how long loading all profile files will
   take; `App` shows a confirm dialog with a progress bar when the count is at
   least `PROFILE_PRELOAD_DIALOG_MIN_FILES`.
-- `NotYetAvailableMod` subclasses in `src/mod_handlers.py` (TraderX,
+- `NotYetAvailableMod` subclasses in `src/models/mod_handlers.py` (TraderX,
   CommunityOnlineTools, PermissionsFramework, SpawnerBubaku, AS_Mods) mark
   entity directories that are skipped during loading and render a notice via
   `UnavailableDisplay` instead of an editable table.
@@ -138,13 +138,13 @@ Notes / Пояснения:
   (модель пропускной способности) для оценки времени загрузки всех profile-файлов;
   `App` показывает диалог подтверждения с прогресс-баром, когда количество
   файлов не меньше `PROFILE_PRELOAD_DIALOG_MIN_FILES`.
-- Подклассы `NotYetAvailableMod` в `src/mod_handlers.py` (TraderX,
+- Подклассы `NotYetAvailableMod` в `src/models/mod_handlers.py` (TraderX,
   CommunityOnlineTools, PermissionsFramework, SpawnerBubaku, AS_Mods) помечают
   каталоги сущностей, которые пропускаются при загрузке и вместо таблицы
   показывают уведомление через `UnavailableDisplay`.
 - Файлы кастомных сущностей рендерятся `SettingsTableDisplay` (обобщённая
   таблица настроек для XML/JSON + сырой текст для TXT). Рендерер и опциональные
-  колонки объявляются в `src/custom_entities.py`; без объявления колонки
+  колонки объявляются в `src/models/custom_entities.py`; без объявления колонки
   определяются автоматически по структуре XML/JSON. `ConnectionConfig.remote_profiles_dir`
   включает дерево profiles в SSH/FTP синхронизацию (скачивается в локальный
   `~/.yetee/workspace/<id>/profiles` и загружается обратно при сохранении).

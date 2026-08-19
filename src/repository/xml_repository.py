@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from lxml import etree as ET
 
-from exceptions import ParseError, AccessError
+from core.exceptions import ParseError, AccessError
 from models.field_def import STATIC_FIELD_DEFS
 from models.row_data import RowData
 from repository.file_cache import FileCache

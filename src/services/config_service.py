@@ -5,7 +5,7 @@ import os
 
 from lxml import etree as ET
 
-from exceptions import ParseError, AccessError
+from core.exceptions import ParseError, AccessError
 
 logger = logging.getLogger(__name__)
 

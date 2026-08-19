@@ -7,7 +7,7 @@ import pytest
 
 from models.project import Project
 from services.profile_service import ProfileService
-from unavailable_display import UnavailableDisplay
+from ui.unavailable_display import UnavailableDisplay
 from ui.economy_editor import EconomyEditor
 
 
@@ -229,7 +229,7 @@ def test_unhandled_mod_custom_entities_stay_editable(editor, tmp_path):
 
 
 def test_unhandled_switch_keeps_registered_entities_editable(editor, tmp_path):
-    from custom_entities import EntityConfig, _CUSTOM_ENTITIES, register_entity
+    from models.custom_entities import EntityConfig, _CUSTOM_ENTITIES, register_entity
 
     mod = tmp_path / "profiles" / "RegisteredMod"
     mod.mkdir(parents=True)

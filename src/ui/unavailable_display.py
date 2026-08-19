@@ -4,7 +4,7 @@ from collections.abc import Callable
 
 import flet as ft
 
-from mod_handlers import get_mod_handler
+from models.mod_handlers import get_mod_handler
 
 DEFAULT_MESSAGE = "Editing for this mod is not available yet."
 

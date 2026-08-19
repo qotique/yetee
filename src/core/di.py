@@ -8,9 +8,9 @@ from controllers.dirty_state_manager import DirtyStateManager
 from controllers.pagination_controller import PaginationController
 from controllers.search_controller import SearchController
 from controllers.table_controller import TableController
-from event_display import EventDisplay
-from file_display import FileDisplay
-from form_display import FormDisplay
+from ui.event_display import EventDisplay
+from ui.file_display import FileDisplay
+from ui.form_display import FormDisplay
 from repository.connection_repository import ConnectionRepository
 from repository.event_repository import EventRepository
 from repository.file_cache import FileCache
@@ -24,9 +24,9 @@ from services.project_service import ProjectService
 from services.remote_sync_service import RemoteSyncService
 from services.settings_service import SettingsService
 from services.update_service import UpdateService
-from settings_table_display import SettingsTableDisplay
+from ui.settings_table_display import SettingsTableDisplay
 from ui.economy_editor import EconomyEditor
-from unavailable_display import UnavailableDisplay
+from ui.unavailable_display import UnavailableDisplay
 
 
 class AppServices(TypedDict):

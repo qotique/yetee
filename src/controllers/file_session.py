@@ -13,7 +13,7 @@ from controllers.table_controller import DEFAULT_FLAG_NAMES, PAGE_SIZE
 from models.field_def import STATIC_FIELD_DEFS
 from models.row_data import RowData
 from models.undo_manager import UndoManager
-from protocols import IXmlRepository
+from core.protocols import IXmlRepository
 from repository.file_cache import FileCache
 
 logger = logging.getLogger(__name__)

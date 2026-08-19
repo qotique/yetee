@@ -6,7 +6,7 @@ import aioftp
 import pytest
 
 from connection.ftp_connection import FTPConnection, RemoteNotConnectedError
-from exceptions import RemoteAuthError, RemoteConnectionError, RemoteTimeoutError
+from core.exceptions import RemoteAuthError, RemoteConnectionError, RemoteTimeoutError
 from models.connection import ConnectionConfig
 
 CLIENT_PATH = "connection.ftp_connection.aioftp.Client"

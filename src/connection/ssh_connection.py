@@ -6,9 +6,9 @@ from typing import Any
 
 import asyncssh
 
-from exceptions import RemoteAuthError, RemoteConnectionError, RemoteTimeoutError
+from core.exceptions import RemoteAuthError, RemoteConnectionError, RemoteTimeoutError
 from models.connection import ConnectionConfig
-from protocols import IRemoteConnection
+from core.protocols import IRemoteConnection
 
 logger = logging.getLogger(__name__)
 
