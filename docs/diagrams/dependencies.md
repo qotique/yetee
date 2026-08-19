@@ -31,14 +31,18 @@ flowchart TB
         dp["DetailPanel ✓ ui/detail_panel.py"]
         bp["BatchPanel ✓ ui/batch_panel.py"]
         cs["ChipSet ✓ ui/chip_set.py"]
+        fm["FilterMenu ✓ ui/filter_menu.py (FilterSpec)"]
+        fp["FunPresenter ✓ ui/fun_presenter.py"]
     end
 
     subgraph controllers["Controllers"]
+        fs["FileSession (src/controllers/file_session.py, flet-free)"]
         tc["TableController"]
         sc["SearchController"]
         pag["PaginationController"]
         dirty["DirtyStateManager"]
         undo["UndoManager (src/models/undo_manager.py)"]
+        cmd["commands.py (RandomizeCommand / SaveCommand)"]
     end
 
     subgraph repo["Repositories"]
@@ -118,11 +122,20 @@ flowchart TB
     fd -->|"detail_panel (IDetailPanel)"| dp
     fd -->|"batch_panel (IBatchPanel)"| bp
     fd -->|"entertainment"| ent
+    fd -->|"fun_presenter (FunPresenter)"| fp
+    fd -->|"filter_menus (FilterMenu[])"| fm
+    fd -->|"session (FileSession)"| fs
     fd -->|"TableController"| tc
-    fd -->|"UndoManager"| undo
-    fd -->|"SearchController"| sc
-    fd -->|"PaginationController"| pag
-    fd -->|"DirtyStateManager"| dirty
+
+    fs -->|"state + ops (rows/undo/search/pagination/dirty)"| sc
+    fs -->|"state + ops"| pag
+    fs -->|"state + ops"| dirty
+    fs -->|"state + ops"| undo
+    fs -->|"SaveCommand / RandomizeCommand"| cmd
+    fs -->|"xml_repo (IXmlRepository)"| xmlr
+    fs -->|"cache (ICache)"| cache
+
+    fp -->|"presentation + dialogs"| ent
 
     evd -->|"event_repo"| evr
     evd -->|"cache"| cache

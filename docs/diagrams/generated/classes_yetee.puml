@@ -128,7 +128,7 @@ class "EconomyService" as src.services.economy_service.EconomyService {
   find_config(economy_dir: str) -> str | None
   get_all_editable_files(economy_dir: str) -> dict[str, str]
   get_economy_dir_files(economy_dir: str) -> dict[str, str]
-  get_expansion_files(economy_dir: str) -> dict[str, dict[str, str]]
+  get_expansion_files(economy_dir: str) -> dict[str, str]
   get_known_files(directory: str) -> dict[str, str]
   get_type_files(economy_dir: str) -> dict[str, str]
   get_types_dir(economy_dir: str) -> str
@@ -234,6 +234,58 @@ class "FileDisplay" as src.file_display.FileDisplay {
   update_cat_icons() -> None
   update_funny_visibility() -> None
 }
+class "FileSession" as src.controllers.file_session.FileSession {
+  cache : FileCache
+  can_redo : bool
+  can_undo : bool
+  dirty : bool
+  filtered : list[int]
+  page_index : int
+  path : NoneType, str | None
+  rows : list[RowData]
+  selected_row_idx : NoneType, int | None
+  selected_row_indices : set[int]
+  xml_repo : IXmlRepository
+  add_type() -> bool
+  apply_filter(query: str, case_sensitive: bool, filters: Mapping[str, str]) -> None
+  batch_apply_chipset(column_key: str, parts: str) -> None
+  batch_apply_field(field_key: str, value: str) -> None
+  batch_apply_flag(flag_name: str, value: str) -> None
+  clamp() -> None
+  clear_all() -> None
+  clear_selection() -> None
+  delete_selected() -> bool
+  load_setup(path: str) -> None
+  mark_clean() -> None
+  mark_dirty() -> None
+  next_page() -> None
+  prev_page() -> None
+  randomize(indices: Iterable[int]) -> None
+  record_undo() -> None
+  redo() -> bool
+  refilter() -> None
+  reset_page() -> None
+  reset_transient() -> None
+  save() -> None
+  save_async() -> None
+  set_syncing(value: bool) -> None
+  total_pages() -> int
+  undo() -> bool
+}
+class "FilterMenu" as src.ui.filter_menu.FilterMenu {
+  menu : MenuBar
+  spec : FilterSpec
+  values : list[str]
+  clear() -> None
+  filter_value() -> str
+  rebuild() -> None
+}
+class "FilterSpec" as src.ui.filter_menu.FilterSpec {
+  empty_marker : str
+  key : str
+  label : str
+  options : list[str]
+}
 class "FormDict" as src.form_schema.FormDict {
   key : str
   label : str
@@ -243,6 +295,7 @@ class "FormDisplay" as src.form_display.FormDisplay {
   button_row : Row
   control : Container
   is_dirty : bool
+  on_file_create : Callable[[str, str], None] | None
   on_file_select : Callable[[str], None] | None
   on_saved : Callable[[], None] | None
   clear() -> None
@@ -264,6 +317,7 @@ class "FormField" as src.form_schema.FormField {
 }
 class "FormGrid" as src.form_schema.FormGrid {
   columns : tuple[FormField, ...]
+  item_schema : str
   key : str
   label : str
 }
@@ -285,6 +339,23 @@ class "FormSchema" as src.form_schema.FormSchema {
   lists : tuple[FormList, ...]
   name_key : str | None
 }
+class "FunPresenter" as src.ui.fun_presenter.FunPresenter {
+  check_easter_egg(name: str) -> None
+  check_icon() -> ft.Icons
+  cycle_tip(tips: list[str]) -> None
+  fab_icon(shift_pressed: bool) -> ft.Icons
+  handle_post_save(rows: list[RowData]) -> None
+  icon_for(normal: ft.Icons) -> ft.Icons
+  is_cat() -> bool
+  lucky_phrase() -> str
+  on_field_change(e: object) -> None
+  show_achievement_fireworks(threshold: int, name: str) -> None
+  show_meme_dialog() -> None
+  show_meow_popup() -> None
+  show_stats_dialog() -> None
+  show_terminal_save(row_count: int) -> None
+  update_funny_visibility(buttons: list[ft.Control]) -> None
+}
 class "IBatchPanel" as src.protocols.IBatchPanel {
   build() -> object
   get_values() -> dict[str, object]
@@ -305,6 +376,9 @@ class "IChipSet" as src.protocols.IChipSet {
   get_values() -> list[str]
   refresh() -> None
   remove(value: str) -> None
+}
+class "ICommand" as src.protocols.ICommand {
+  execute() -> None
 }
 class "IConfigService" as src.protocols.IConfigService {
   add_file_to_ce(tree: ET.ElementTree, filename: str) -> bool
@@ -449,6 +523,9 @@ class "ProjectService" as src.services.project_service.ProjectService {
   remove_project(name: str) -> None
   save_projects(projects: list[Project]) -> None
 }
+class "RandomizeCommand" as src.controllers.commands.RandomizeCommand {
+  execute() -> None
+}
 class "<color:red>RemoteAuthError</color>" as src.exceptions.RemoteAuthError {
 }
 class "<color:red>RemoteConnectionError</color>" as src.exceptions.RemoteConnectionError {
@@ -481,12 +558,17 @@ class "SSHConnection" as src.connection.ssh_connection.SSHConnection {
   list_files(path: str) -> list[str]
   upload_file(local_path: str, remote_path: str) -> None
 }
+class "SaveCommand" as src.controllers.commands.SaveCommand {
+  execute() -> None
+  execute_async() -> None
+}
 class "SearchController" as src.controllers.search_controller.SearchController {
   case_sensitive : bool
+  filters : dict[str, str]
   query : str
   filter_rows(rows: list[RowData]) -> list[int]
   reset() -> None
-  set_filters(category: str, usage: str, value: str) -> None
+  set_filters(filters: Mapping[str, str]) -> None
   set_search(value: str, case_sensitive: bool) -> None
 }
 class "SettingsService" as src.services.settings_service.SettingsService {
