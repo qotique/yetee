@@ -116,6 +116,20 @@ class FileDisplay:
         self._path: str | None = None
         self._rows: list[RowData] = []
         self._filtered: list[int] = []
+        self._text_mode: bool = False
+        self._text_editor = ft.TextField(
+            multiline=True,
+            min_lines=1,
+            expand=True,
+            dense=True,
+            border=ft.InputBorder.NONE,
+            on_change=self._on_text_change,
+        )
+        self._text_placeholder = ft.Text(
+            "",
+            size=11,
+            selectable=True,
+        )
 
         self._selected_row_idx: int | None = None
         self._selected_row_indices: set[int] = set()
@@ -377,6 +391,29 @@ class FileDisplay:
             content=self._keyboard_listener,
         )
 
+        self._text_container = ft.Container(
+            visible=False,
+            expand=True,
+            content=ft.Column(
+                [
+                    ft.Container(
+                        content=self._text_editor,
+                        border=ft.Border(
+                            ft.BorderSide(1, ft.Colors.OUTLINE_VARIANT),
+                            ft.BorderSide(1, ft.Colors.OUTLINE_VARIANT),
+                            ft.BorderSide(1, ft.Colors.OUTLINE_VARIANT),
+                            ft.BorderSide(1, ft.Colors.OUTLINE_VARIANT),
+                        ),
+                        border_radius=8,
+                        padding=10,
+                        expand=True,
+                    ),
+                    self._text_placeholder,
+                ],
+                expand=True,
+            ),
+        )
+
         logger.debug("FileDisplay initialized")
 
     @property
@@ -450,6 +487,9 @@ class FileDisplay:
         if self._search_task is not None and not self._search_task.done():
             self._search_task.cancel()
             self._search_task = None
+        self._text_mode = False
+        self._text_container.visible = False
+        self.control.content = self._keyboard_listener
         self._path = path
         self._save_text.value = ""
         self._pagination.reset()
@@ -482,8 +522,39 @@ class FileDisplay:
             self._tip_task.cancel()
         self._tip_task = asyncio.create_task(self._cycle_tip())
 
+    def _is_text_file(self, path: str) -> bool:
+        return not path.lower().endswith(".xml")
+
+    def _load_text_file(self, path: str) -> None:
+        self._text_mode = True
+        self._save_text.value = ""
+        try:
+            with open(path, encoding="utf-8", errors="replace") as f:
+                content = f.read()
+        except OSError as ex:
+            logger.error("Error reading text file %s: %s", path, ex)
+            self._text_placeholder.value = f"Error reading file: {ex}"
+            self._text_placeholder.color = ft.Colors.RED
+            self.control.content = self._text_container
+            self._text_container.visible = True
+            self.control.visible = True
+            return
+        self._text_editor.value = content
+        self._text_placeholder.value = path
+        self._text_placeholder.color = ft.Colors.GREY
+        self.control.content = self._text_container
+        self._text_container.visible = True
+        self.control.visible = True
+        self._undo_mgr.clear()
+        self._dirty_state.reset()
+        logger.info("Loaded text file: %s", path)
+
     def load_file(self, path: str) -> None:
         self._load_setup(path)
+        if self._is_text_file(path):
+            self._load_text_file(path)
+            return
+        self._text_mode = False
         try:
             self._rows = self.xml_repo.parse_file(path)
         except Exception as ex:
@@ -504,6 +575,17 @@ class FileDisplay:
         cancel_check: Callable[[], bool] | None = None,
     ) -> None:
         self._load_setup(path)
+        if self._is_text_file(path):
+            self._load_text_file(path)
+            if cancel_check is not None and cancel_check():
+                logger.info("CANCEL_CHECK cancelled load of %s", path)
+                return
+            try:
+                self.control.update()
+            except RuntimeError:
+                pass
+            return
+        self._text_mode = False
         try:
             self._rows = await self.xml_repo.parse_file_async(path)
         except Exception as ex:
@@ -522,6 +604,9 @@ class FileDisplay:
         self.control.update()
 
     def save_current(self, e: object) -> None:
+        if self._text_mode:
+            self._save_text_file()
+            return
         self._sync_detail_panel()
         self._sync_page_back()
         if self._path is None:
@@ -539,6 +624,9 @@ class FileDisplay:
             logger.error("Save failed for %s: %s", self._path, ex)
 
     async def _save_async(self) -> None:
+        if self._text_mode:
+            self._save_text_file()
+            return
         self._sync_detail_panel()
         self._sync_page_back()
         if self._path is None:
@@ -575,6 +663,30 @@ class FileDisplay:
                 color=ft.Colors.GREY_500,
             )
             self._tips_switcher.update()
+
+    def _on_text_change(self, e: object) -> None:
+        self._dirty_state.mark_dirty()
+        if self._save_text.value:
+            self._save_text.value = ""
+            self._save_text.color = None
+
+    def _save_text_file(self) -> bool:
+        if self._path is None:
+            return True
+        try:
+            with open(self._path, "w", encoding="utf-8") as f:
+                f.write(self._text_editor.value)
+            self._save_text.value = ""
+            self._dirty_state.mark_clean()
+            logger.info("Saved text file %s", self._path)
+            if self.on_saved:
+                self.on_saved()
+            return True
+        except OSError as ex:
+            self._save_text.value = f"Save error: {ex}"
+            self._save_text.color = ft.Colors.RED
+            logger.error("Save failed for %s: %s", self._path, ex)
+            return False
 
     def _on_field_change(self, e: object) -> None:
         self._dirty_state.mark_dirty()
@@ -1279,8 +1391,13 @@ class FileDisplay:
         self._stats_btn.icon = ft.Icons.BAR_CHART if not is_cat else ft.Icons.PETS
         self._search_field.icon = ft.Icons.PETS if is_cat else ft.Icons.SEARCH
         for ctrl in (
-            self._save_btn, self._multi_btn, self._undo_btn, self._redo_btn,
-            self._lucky_btn, self._stats_btn, self._search_field,
+            self._save_btn,
+            self._multi_btn,
+            self._undo_btn,
+            self._redo_btn,
+            self._lucky_btn,
+            self._stats_btn,
+            self._search_field,
         ):
             self._try_update(ctrl)
         self._rebuild_category_menu()
@@ -1563,6 +1680,9 @@ class FileDisplay:
             await asyncio.sleep(0.15)
 
     def save_file(self) -> None:
+        if self._text_mode:
+            self._save_text_file()
+            return
         self._sync_detail_panel()
         self._sync_page_back()
         if self._path is not None:
@@ -1581,6 +1701,9 @@ class FileDisplay:
         self._path = None
         self._rows = []
         self._filtered = []
+        self._text_mode = False
+        self._text_container.visible = False
+        self.control.content = self._keyboard_listener
         self._table_ctrl.clear()
         self._save_text.value = ""
         self._category_filter_values.clear()

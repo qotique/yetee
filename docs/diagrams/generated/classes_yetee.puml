@@ -1,5 +1,8 @@
 @startuml classes_yetee
 set namespaceSeparator none
+class "AS_Mods" as src.mod_handlers.AS_Mods {
+  name : str
+}
 class "<color:red>AccessError</color>" as src.exceptions.AccessError {
 }
 class "App" as src.main.App {
@@ -8,6 +11,7 @@ class "App" as src.main.App {
   page : Page
   selected_language : str
   selected_theme : str
+  show_unhandled_mod_editors : bool
   start_container : Container
   build_main_view() -> ft.View
   open_settings(e: object) -> None
@@ -20,6 +24,7 @@ class "AppServices" as src.di.AppServices {
   connection_manager : ConnectionManager
   economy_editor : EconomyEditor
   entertainment_service : EntertainmentService
+  profile_service : ProfileService
   project_service : ProjectService
   remote_sync_service : RemoteSyncService
   settings_service : SettingsService
@@ -40,6 +45,9 @@ class "ChipSet" as src.ui.chip_set.ChipSet {
   remove(value: str) -> None
   set_cat_mode(enabled: bool) -> None
 }
+class "CommunityOnlineTools" as src.mod_handlers.CommunityOnlineTools {
+  name : str
+}
 class "ConfigService" as src.services.config_service.ConfigService {
   add_file_to_ce(tree: ET.ElementTree, filename: str) -> bool
   create_type_file(ce_path: str, filename: str) -> str | None
@@ -58,6 +66,7 @@ class "ConnectionConfig" as src.models.connection.ConnectionConfig {
   project_name : str
   protocol : str
   remote_economy_dir : str
+  remote_profiles_dir : str
   username : str
   from_dict(d: dict[str, object]) -> ConnectionConfig
   to_dict() -> dict[str, object]
@@ -101,12 +110,16 @@ class "EconomyEditor" as src.ui.economy_editor.EconomyEditor {
   entity_files : list[str]
   event_display : EventDisplay
   file_display : FileDisplay
+  form_display : FormDisplay | None
   is_types_entity : bool
   project : Project | None
+  settings_display : SettingsTableDisplay | None
   get_file_path(label: str) -> str | None
+  is_editable_entity(entity: str) -> bool
   load_project(project: Project) -> None
   save_current(e: object) -> None
   save_file() -> None
+  set_show_unhandled_editors(enabled: bool) -> None
   switch_entity(entity: str) -> None
   switch_file(label: str) -> None
   unload() -> None
@@ -115,6 +128,7 @@ class "EconomyService" as src.services.economy_service.EconomyService {
   find_config(economy_dir: str) -> str | None
   get_all_editable_files(economy_dir: str) -> dict[str, str]
   get_economy_dir_files(economy_dir: str) -> dict[str, str]
+  get_expansion_files(economy_dir: str) -> dict[str, dict[str, str]]
   get_known_files(directory: str) -> dict[str, str]
   get_type_files(economy_dir: str) -> dict[str, str]
   get_types_dir(economy_dir: str) -> str
@@ -137,6 +151,12 @@ class "EntertainmentService" as src.services.entertainment_service.Entertainment
   get_lucky_phrase() -> str
   get_stats_text() -> str
   record_edit(field_key: str) -> None
+}
+class "EntityConfig" as src.custom_entities.EntityConfig {
+  default
+  files : dict[str, FileConfig]
+  folders : dict[str, FileConfig]
+  file_config(filename: str) -> FileConfig
 }
 class "EventDisplay" as src.event_display.EventDisplay {
   button_row : Row
@@ -174,10 +194,14 @@ class "FieldDef" as src.models.field_def.FieldDef {
   options : list[str] | None
   type
   width : int
+  is_bool() -> bool
   is_flag() -> bool
+  is_float() -> bool
+  is_int() -> bool
   is_multi_named() -> bool
   is_single_named() -> bool
   is_text() -> bool
+  is_toggle() -> bool
 }
 class "FieldType" as src.models.field_def.FieldType {
   name
@@ -189,6 +213,10 @@ class "FileCache" as src.repository.file_cache.FileCache {
   invalidate(path: str) -> None
   set_rows(path: str, rows: list[RowData]) -> None
   set_tree(path: str, tree: ET.ElementTree) -> None
+}
+class "FileConfig" as src.custom_entities.FileConfig {
+  columns : tuple[FieldDef, ...]
+  renderer : str
 }
 class "FileDisplay" as src.file_display.FileDisplay {
   button_row : Row
@@ -205,6 +233,57 @@ class "FileDisplay" as src.file_display.FileDisplay {
   show_meow_popup() -> None
   update_cat_icons() -> None
   update_funny_visibility() -> None
+}
+class "FormDict" as src.form_schema.FormDict {
+  key : str
+  label : str
+  value_type : FieldType
+}
+class "FormDisplay" as src.form_display.FormDisplay {
+  button_row : Row
+  control : Container
+  is_dirty : bool
+  on_file_select : Callable[[str], None] | None
+  on_saved : Callable[[], None] | None
+  clear() -> None
+  clear_cache(path: str) -> None
+  load_file(path: str) -> None
+  load_file_async(path: str, cancel_check: Callable[[], bool] | None) -> None
+  preload_cached(paths: list[str], on_progress: Callable[[int, int], None] | None, cancel_check: Callable[[], bool] | None) -> None
+  save_async() -> None
+  save_current(e: object) -> None
+  save_file() -> None
+  set_entity(entity: str) -> None
+  set_files(files: dict[str, str]) -> None
+}
+class "FormField" as src.form_schema.FormField {
+  key : str
+  label : str
+  options : tuple[str, ...]
+  type : FieldType
+}
+class "FormGrid" as src.form_schema.FormGrid {
+  columns : tuple[FormField, ...]
+  key : str
+  label : str
+}
+class "FormGroup" as src.form_schema.FormGroup {
+  key : str
+  label : str
+  schema : str
+}
+class "FormList" as src.form_schema.FormList {
+  item_type : FieldType
+  key : str
+  label : str
+}
+class "FormSchema" as src.form_schema.FormSchema {
+  dicts : tuple[FormDict, ...]
+  fields : tuple[FormField, ...]
+  grids : tuple[FormGrid, ...]
+  groups : tuple[FormGroup, ...]
+  lists : tuple[FormList, ...]
+  name_key : str | None
 }
 class "IBatchPanel" as src.protocols.IBatchPanel {
   build() -> object
@@ -266,6 +345,9 @@ class "IPagination" as src.protocols.IPagination {
   total_pages(total_items: int) -> int
   visible_range(total_items: int) -> tuple[int, int]
 }
+class "IProfileService" as src.protocols.IProfileService {
+  scan_profiles(profiles_dir: str) -> dict[str, dict[str, str]]
+}
 class "IProjectService" as src.protocols.IProjectService {
   add_project(project: object) -> None
   get_last_project() -> object | None
@@ -283,6 +365,7 @@ class "IRemoteConnection" as src.protocols.IRemoteConnection {
   upload_file(local_path: str, remote_path: str) -> None
 }
 class "ISearch" as src.protocols.ISearch {
+  case_sensitive : bool
   query : str
   filter_rows(rows: list[RowData]) -> list[int]
 }
@@ -305,7 +388,19 @@ class "IXmlRepository" as src.protocols.IXmlRepository {
   save(path: str, rows: list[RowData]) -> None
   save_async(path: str, rows: list[RowData]) -> None
 }
+class "JsonSettingsRepository" as src.repository.settings_repository.JsonSettingsRepository {
+  invalidate_cache(path: str) -> None
+  load_doc(path: str) -> object
+  parse_file(path: str, schema: tuple[FieldDef, ...] | None) -> tuple[list[FieldDef], list[RowData]]
+  save(path: str, rows: list[RowData]) -> None
+  save_doc(path: str, doc: object) -> None
+}
 class "<color:red>NetworkError</color>" as src.exceptions.NetworkError {
+}
+class "NotYetAvailableMod" as src.mod_handlers.NotYetAvailableMod {
+  message : str
+  name : str
+  get_renderer(filename: str) -> str
 }
 class "PaginationController" as src.controllers.pagination_controller.PaginationController {
   page_index : int
@@ -319,9 +414,22 @@ class "PaginationController" as src.controllers.pagination_controller.Pagination
 }
 class "<color:red>ParseError</color>" as src.exceptions.ParseError {
 }
+class "PermissionsFramework" as src.mod_handlers.PermissionsFramework {
+  name : str
+}
+class "PreloadEstimate" as src.services.profile_preload_service.PreloadEstimate {
+  count : int
+  seconds : float
+  total_bytes : int
+}
+class "ProfileService" as src.services.profile_service.ProfileService {
+  collect_entity_files(directory: str) -> dict[str, str]
+  scan_profiles(profiles_dir: str) -> dict[str, dict[str, str]]
+}
 class "Project" as src.models.project.Project {
   connection_id : str
   created_at : float
+  custom_entities : dict[str, dict[str, str]]
   economy_dir : str
   is_remote : bool
   last_opened : float | None
@@ -350,8 +458,8 @@ class "<color:red>RemoteNotConnectedError</color>" as src.connection.ftp_connect
 class "<color:red>RemoteNotConnectedError</color>" as src.connection.ssh_connection.RemoteNotConnectedError {
 }
 class "RemoteSyncService" as src.services.remote_sync_service.RemoteSyncService {
-  sync_to_local(config: ConnectionConfig, remote_dir: str, local_dir: str, connection: IRemoteConnection | None) -> None
-  upload_to_remote(config: ConnectionConfig, local_dir: str, remote_dir: str, connection: IRemoteConnection | None) -> None
+  sync_to_local(config: ConnectionConfig, remote_dir: str, local_dir: str, connection: IRemoteConnection | None, remote_profiles_dir: str, local_profiles_dir: str, exclude_profiles: set[str] | None, on_progress: ProgressCallback | None, on_status: Callable[[str], None] | None) -> None
+  upload_to_remote(config: ConnectionConfig, local_dir: str, remote_dir: str, connection: IRemoteConnection | None, local_profiles_dir: str, remote_profiles_dir: str, exclude_profiles: set[str] | None) -> None
 }
 class "<color:red>RemoteTimeoutError</color>" as src.exceptions.RemoteTimeoutError {
 }
@@ -374,15 +482,34 @@ class "SSHConnection" as src.connection.ssh_connection.SSHConnection {
   upload_file(local_path: str, remote_path: str) -> None
 }
 class "SearchController" as src.controllers.search_controller.SearchController {
+  case_sensitive : bool
   query : str
   filter_rows(rows: list[RowData]) -> list[int]
   reset() -> None
   set_filters(category: str, usage: str, value: str) -> None
-  set_search(value: str) -> None
+  set_search(value: str, case_sensitive: bool) -> None
 }
 class "SettingsService" as src.services.settings_service.SettingsService {
   load_settings() -> dict[str, object]
   save_setting(key: str, value: object) -> None
+}
+class "SettingsTableDisplay" as src.settings_table_display.SettingsTableDisplay {
+  button_row : Row
+  control : Container
+  is_dirty : bool
+  on_saved : Callable[[], None] | None
+  clear() -> None
+  clear_cache(path: str) -> None
+  load_file(path: str) -> None
+  load_file_async(path: str, cancel_check: Callable[[], bool] | None) -> None
+  preload_cached(paths: list[str], on_progress: Callable[[int, int], None] | None, cancel_check: Callable[[], bool] | None) -> None
+  save_async() -> None
+  save_current(e: object) -> None
+  save_file() -> None
+  set_entity(entity: str) -> None
+}
+class "SpawnerBubaku" as src.mod_handlers.SpawnerBubaku {
+  name : str
 }
 class "TableController" as src.controllers.table_controller.TableController {
   field_defs : list[FieldDef]
@@ -392,9 +519,27 @@ class "TableController" as src.controllers.table_controller.TableController {
   clear() -> None
   get_table_widget() -> ft.Column
   init_dynamic() -> None
+  init_table(field_defs: list[FieldDef]) -> None
   render(rows: list[RowData], filtered: list[int], page_idx: int, selected_indices: set[int]) -> None
   set_callbacks(on_row_click: Callable[[int], None] | None, on_field_change: Callable[[object], None] | None, on_row_hover: Callable[[object, int], None] | None, on_row_tap_down: Callable[[object, int], None] | None) -> None
   sync_back(rows: list[RowData], filtered: list[int], page_idx: int) -> None
+}
+class "TraderX" as src.mod_handlers.TraderX {
+  name : str
+}
+class "UnavailableDisplay" as src.unavailable_display.UnavailableDisplay {
+  button_row : Row
+  control : Container
+  is_dirty : bool
+  on_saved : Callable[[], None] | None
+  clear() -> None
+  clear_cache(path: str) -> None
+  load_file(path: str) -> None
+  load_file_async(path: str, cancel_check: Callable[[], bool] | None) -> None
+  {abstract}save_async() -> None
+  save_current(e: object) -> None
+  {abstract}save_file() -> None
+  set_entity(entity: str) -> None
 }
 class "UndoManager" as src.models.undo_manager.UndoManager {
   can_redo : bool
@@ -415,10 +560,15 @@ class "XmlRepository" as src.repository.xml_repository.XmlRepository {
   save(path: str, rows: list[RowData]) -> None
   save_async(path: str, rows: list[RowData]) -> None
 }
+class "XmlSettingsRepository" as src.repository.settings_repository.XmlSettingsRepository {
+  invalidate_cache(path: str) -> None
+  parse_file(path: str, schema: tuple[FieldDef, ...] | None) -> tuple[list[FieldDef], list[RowData]]
+  save(path: str, rows: list[RowData]) -> None
+}
 class "<color:red>YeteeError</color>" as src.exceptions.YeteeError {
 }
 class "_EntityConfig" as src.ui.economy_editor._EntityConfig {
-  display : FileDisplay | EventDisplay
+  display
   schedule_load : Callable[[], None] | None
   show_add_tab : bool
   show_tabs : bool
@@ -429,5 +579,11 @@ src.exceptions.ParseError --|> src.exceptions.YeteeError
 src.exceptions.RemoteAuthError --|> src.exceptions.NetworkError
 src.exceptions.RemoteConnectionError --|> src.exceptions.NetworkError
 src.exceptions.RemoteTimeoutError --|> src.exceptions.NetworkError
+src.mod_handlers.AS_Mods --|> src.mod_handlers.NotYetAvailableMod
+src.mod_handlers.CommunityOnlineTools --|> src.mod_handlers.NotYetAvailableMod
+src.mod_handlers.PermissionsFramework --|> src.mod_handlers.NotYetAvailableMod
+src.mod_handlers.SpawnerBubaku --|> src.mod_handlers.NotYetAvailableMod
+src.mod_handlers.TraderX --|> src.mod_handlers.NotYetAvailableMod
+src.custom_entities.EntityConfig --> src.custom_entities.FileConfig : default
 src.models.field_def.FieldDef --> src.models.field_def.FieldType : type
 @enduml

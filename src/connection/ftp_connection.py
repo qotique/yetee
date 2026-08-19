@@ -39,8 +39,10 @@ class FTPConnection(IRemoteConnection):
             return
         port = DEFAULT_FTP_PORT if self._config.port <= 0 else self._config.port
         client: Any = aioftp.Client()
-        print(f"[diag FTP] connect kwargs: host={self._config.host} port={port} "
-              f"user={self._config.username} has_password={bool(self._password)}")
+        print(
+            f"[diag FTP] connect kwargs: host={self._config.host} port={port} "
+            f"user={self._config.username} has_password={bool(self._password)}"
+        )
         try:
             print("[diag FTP] awaiting aioftp connect()...")
             await client.connect(self._config.host, port)
@@ -101,9 +103,7 @@ class FTPConnection(IRemoteConnection):
         try:
             await self._client.download(remote_path, local_path)
         except (aioftp.AIOFTPException, OSError) as exc:
-            raise RemoteConnectionError(
-                f"Failed to download {remote_path}"
-            ) from exc
+            raise RemoteConnectionError(f"Failed to download {remote_path}") from exc
 
     async def upload_file(self, local_path: str, remote_path: str) -> None:
         self._require_connected()

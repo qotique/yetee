@@ -20,6 +20,8 @@ ECONOMY_DIR_FILES: list[str] = [
     "cfgeventspawns.xml",
 ]
 
+EXPANSION_FILE_EXTENSIONS: tuple[str, ...] = (".json", ".xml", ".txt")
+
 
 class EconomyService:
     def find_config(self, economy_dir: str) -> str | None:
@@ -88,3 +90,48 @@ class EconomyService:
             if os.path.exists(path):
                 files[filename] = path
         return files
+
+    def get_expansion_files(self, economy_dir: str) -> dict[str, str]:
+        """Collect mission-side `expansion/**` files into a flat label map.
+
+        Each label is prefixed with `Mission/` and preserves the real relative
+        path under the expansion dir (e.g. ``Mission/settings/BaseBuildingSettings.json``)
+        so files in different top-level dirs never collide.
+        """
+        expansion_dir = os.path.join(economy_dir, "expansion")
+        if not os.path.isdir(expansion_dir):
+            return {}
+        out: dict[str, str] = {}
+        try:
+            entries = sorted(os.listdir(expansion_dir))
+        except OSError as ex:
+            logger.warning("Could not list expansion dir %s: %s", expansion_dir, ex)
+            return {}
+        for entry in entries:
+            if entry.startswith("."):
+                continue
+            area_dir = os.path.join(expansion_dir, entry)
+            if not os.path.isdir(area_dir):
+                continue
+            self._collect_expansion_files(area_dir, f"Mission/{entry}", out)
+        return out
+
+    def _collect_expansion_files(
+        self,
+        directory: str,
+        prefix: str,
+        out: dict[str, str],
+    ) -> None:
+        try:
+            entries = sorted(os.listdir(directory))
+        except OSError as ex:
+            logger.warning("Could not list dir %s: %s", directory, ex)
+            return
+        for entry in entries:
+            if entry.startswith("."):
+                continue
+            path = os.path.join(directory, entry)
+            if os.path.isdir(path):
+                self._collect_expansion_files(path, f"{prefix}/{entry}", out)
+            elif entry.lower().endswith(EXPANSION_FILE_EXTENSIONS):
+                out[f"{prefix}/{entry}".lstrip("/")] = path

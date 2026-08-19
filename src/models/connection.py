@@ -12,6 +12,7 @@ class ConnectionConfig:
     username: str
     key_path: str = ""
     remote_economy_dir: str = ""
+    remote_profiles_dir: str = ""
     project_name: str = ""
 
     def to_dict(self) -> dict[str, object]:
@@ -23,6 +24,7 @@ class ConnectionConfig:
             "username": self.username,
             "key_path": self.key_path,
             "remote_economy_dir": self.remote_economy_dir,
+            "remote_profiles_dir": self.remote_profiles_dir,
             "project_name": self.project_name,
         }
 
@@ -36,5 +38,6 @@ class ConnectionConfig:
             username=str(d.get("username", "")),
             key_path=str(d.get("key_path", "")),
             remote_economy_dir=str(d.get("remote_economy_dir", "")),
+            remote_profiles_dir=str(d.get("remote_profiles_dir", "")),
             project_name=str(d.get("project_name", "")),
         )

@@ -128,7 +128,9 @@ class ConnectionManager:
         return str(result) if result is not None else None
 
     def create(self, config: ConnectionConfig) -> IRemoteConnection:
-        print(f"[diag manager] create({config.protocol}) -> calling _password / factory")
+        print(
+            f"[diag manager] create({config.protocol}) -> calling _password / factory"
+        )
         conn = create_connection(config, self._password(config))
         print(f"[diag manager] created {type(conn).__name__}")
         return conn

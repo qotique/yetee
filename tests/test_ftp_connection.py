@@ -90,9 +90,7 @@ async def test_connect_os_error_raises_remote_connection():
 @pytest.mark.asyncio
 async def test_list_files_returns_names():
     client = make_environment()
-    client.list = AsyncMock(
-        return_value=[(PurePosixPath("types.xml"), MagicMock())]
-    )
+    client.list = AsyncMock(return_value=[(PurePosixPath("types.xml"), MagicMock())])
     ftp = FTPConnection(make_config())
     with patch(CLIENT_PATH, return_value=client):
         await ftp.connect()

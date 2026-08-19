@@ -120,6 +120,13 @@ class TableController:
             )
         )
 
+        self._build_pool()
+
+    def init_table(self, field_defs: list[FieldDef]) -> None:
+        self._field_defs = list(field_defs)
+        self._build_pool()
+
+    def _build_pool(self) -> None:
         self._col_widths = [fd.width for fd in self._field_defs]
         table_width = sum(self._col_widths) + (len(self._field_defs) - 1) * 6
 
@@ -170,12 +177,50 @@ class TableController:
                         on_focus=lambda e, idx=ri: self._trigger_row_click(idx),
                         expand=True,
                     )
-                elif fd.is_flag():
+                elif fd.is_flag() or fd.is_toggle():
                     w = ft.Checkbox(
                         label="",
                         value=False,
                         on_change=self._on_field_change,
                         on_focus=lambda e, idx=ri: self._trigger_row_click(idx),
+                    )
+                elif fd.is_bool():
+                    w = ft.Dropdown(
+                        value="",
+                        dense=True,
+                        text_size=12,
+                        height=36,
+                        content_padding=ft.Padding(left=12, top=2, right=12, bottom=2),
+                        border_color=ft.Colors.with_opacity(0.5, ft.Colors.OUTLINE),
+                        focused_border_color=ft.Colors.PRIMARY,
+                        filled=False,
+                        options=[ft.DropdownOption(key="", text="")]
+                        + [
+                            ft.DropdownOption(key=c)
+                            for c in (
+                                ["true", "false"] if not fd.options else fd.options
+                            )
+                        ],
+                        on_select=self._on_field_change,
+                        hover_color=ft.Colors.TRANSPARENT,
+                        on_focus=lambda e, idx=ri: self._trigger_row_click(idx),
+                        expand=True,
+                    )
+                elif fd.is_int() or fd.is_float():
+                    w = ft.TextField(
+                        value="",
+                        dense=True,
+                        text_size=12,
+                        text_align=ft.TextAlign.RIGHT,
+                        keyboard_type=ft.KeyboardType.NUMBER,
+                        min_lines=1,
+                        max_lines=1,
+                        on_change=self._on_field_change,
+                        hover_color=ft.Colors.TRANSPARENT,
+                        filled=False,
+                        on_focus=lambda e, idx=ri: self._trigger_row_click(idx),
+                        on_click=lambda e, idx=ri: self._trigger_row_click(idx),
+                        expand=True,
                     )
                 else:
                     w = ft.TextField(
@@ -196,7 +241,7 @@ class TableController:
                 w.tooltip = FIELD_TIPS.get(fd.key, f"{fd.label} field")
                 fields.append(w)
 
-                if fd.is_flag():
+                if fd.is_flag() or fd.is_toggle():
                     cell = ft.Container(
                         content=ft.Row([w], alignment=ft.MainAxisAlignment.CENTER),
                         width=fd.width,
@@ -273,6 +318,10 @@ class TableController:
                     val = row_data.flags.get(fd.key, "0") == "1"
                     if field.value != val:
                         field.value = val
+                elif fd.is_toggle():
+                    val = row_data.values.get(fd.key, "0") == "1"
+                    if field.value != val:
+                        field.value = val
                 else:
                     in_val = row_data.values.get(fd.key, "")
                     if field.value != in_val:
@@ -295,6 +344,8 @@ class TableController:
                 widget = self._pool_fields[i][j]
                 if fd.is_flag():
                     row_data.flags[fd.key] = "1" if widget.value else "0"
+                elif fd.is_toggle():
+                    row_data.values[fd.key] = "1" if widget.value else "0"
                 else:
                     row_data.values[fd.key] = widget.value
 

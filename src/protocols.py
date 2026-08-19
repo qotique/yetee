@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import Protocol, runtime_checkable
 
 from lxml import etree as ET
@@ -69,6 +68,11 @@ class IEconomyService(Protocol):
     def get_types_dir(self, economy_dir: str) -> str: ...
     def get_known_files(self, directory: str) -> dict[str, str]: ...
     def get_all_editable_files(self, economy_dir: str) -> dict[str, str]: ...
+
+
+@runtime_checkable
+class IProfileService(Protocol):
+    def scan_profiles(self, profiles_dir: str) -> dict[str, dict[str, str]]: ...
 
 
 @runtime_checkable

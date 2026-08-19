@@ -3,6 +3,7 @@
 Usage:
     uv run python scripts/generate_diagrams.py
 """
+
 from __future__ import annotations
 
 import os

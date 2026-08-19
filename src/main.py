@@ -1,29 +1,36 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
+import time
+from collections.abc import Callable
 
 import flet as ft
 
+import expansion  # noqa: F401  (registers Expansion schemas at import)
 from di import create_app_services
-from exceptions import YeteeError, ParseError, AccessError
+from exceptions import YeteeError
 from logging_setup import setup_logging
 from models.connection import ConnectionConfig
 from models.project import Project
-from models.project import Project
+from mod_handlers import not_yet_available_entities
 from services.config_service import ConfigService
 from services.connection_manager import ConnectionManager
 from services.economy_service import EconomyService
 from services.entertainment_service import EntertainmentService
+from services.profile_service import ProfileService
+from services.profile_preload_service import estimate_preload, should_confirm
 from services.project_service import ProjectService
 from services.remote_sync_service import RemoteSyncService
 from services.settings_service import SettingsService, THEMES, LANGUAGES
 from services.update_service import UpdateService
+from settings_table_display import SettingsTableDisplay
 from ui.economy_editor import EconomyEditor
 
 logger = logging.getLogger(__name__)
 
-VERSION = "0.5.1"
+VERSION = "0.6.0"
 
 
 class App:
@@ -38,6 +45,7 @@ class App:
         economy_editor: EconomyEditor,
         connection_manager: ConnectionManager | None = None,
         remote_sync_service: RemoteSyncService | None = None,
+        profile_service: ProfileService | None = None,
     ) -> None:
         self.page = page
         self._config_service = config_service
@@ -50,14 +58,20 @@ class App:
         self._remote_sync = remote_sync_service or RemoteSyncService(
             self._connection_manager
         )
+        self._profile_service = profile_service or ProfileService()
         self._connections_protocol: str = "ssh"
 
         self._economy_editor.file_display.on_saved = self._on_local_saved
         self._economy_editor.event_display.on_saved = self._on_local_saved
+        if self._economy_editor.settings_display is not None:
+            self._economy_editor.settings_display.on_saved = self._on_local_saved
+        if self._economy_editor.form_display is not None:
+            self._economy_editor.form_display.on_saved = self._on_local_saved
 
         self.selected_theme: str = "SYSTEM"
         self.selected_language: str = "English"
         self.check_updates: bool = True
+        self.show_unhandled_mod_editors: bool = False
 
         page.title = "Yet Another Types Editing Environment | YETEE"
         page.window.title_bar_hidden = True
@@ -107,6 +121,12 @@ class App:
             icon=ft.Icons.SAVE,
             on_click=self._on_save,
             visible=False,
+        )
+        self._refresh_btn = ft.IconButton(
+            icon=ft.Icons.REFRESH,
+            tooltip="Refresh project",
+            visible=False,
+            on_click=self._on_refresh_project,
         )
 
         unsupported_yet = ft.AlertDialog(
@@ -236,6 +256,10 @@ class App:
             value=self._entertainment_service.funny_enabled,
             on_change=self._on_funny_enabled_change,
         )
+        self._unhandled_editors_switch = ft.Switch(
+            value=self.show_unhandled_mod_editors,
+            on_change=self._on_unhandled_editors_change,
+        )
 
         self._settings_overlay = ft.Container(
             visible=False,
@@ -276,6 +300,11 @@ class App:
                                 ft.ListTile(
                                     title=ft.Text("Check updates on startup"),
                                     trailing=self._check_updates_switch,
+                                    dense=True,
+                                ),
+                                ft.ListTile(
+                                    title=ft.Text("Edit all mods [BETA]"),
+                                    trailing=self._unhandled_editors_switch,
                                     dense=True,
                                 ),
                                 ft.Divider(),
@@ -333,6 +362,7 @@ class App:
                         self._project_dropdown,
                         self._new_project_btn,
                         self._delete_project_btn,
+                        self._refresh_btn,
                         self._settings_btn,
                         ft.IconButton(
                             icon=ft.Icons.SWAP_VERT_CIRCLE,
@@ -388,6 +418,7 @@ class App:
         self._cat_mode_switch.value = self._entertainment_service.cat_mode
         self._terminal_mode_switch.value = self._entertainment_service.terminal_mode
         self._funny_enabled_switch.value = self._entertainment_service.funny_enabled
+        self._unhandled_editors_switch.value = self.show_unhandled_mod_editors
 
     def route_change(self, route: object = None) -> None:
         if not hasattr(self, "_title_bar"):
@@ -435,6 +466,13 @@ class App:
                 es.terminal_mode = bool(settings["terminal_mode"])
             if "funny_enabled" in settings:
                 es.funny_enabled = bool(settings["funny_enabled"])
+            if "show_unhandled_mod_editors" in settings:
+                self.show_unhandled_mod_editors = bool(
+                    settings["show_unhandled_mod_editors"]
+                )
+                self._economy_editor.set_show_unhandled_editors(
+                    self.show_unhandled_mod_editors
+                )
             achievements_raw = settings.get("achievements")
             if isinstance(achievements_raw, str):
                 es.achievements_str = achievements_raw
@@ -473,25 +511,144 @@ class App:
         self.start_container.visible = False
         self._save_btn.visible = True
         self._delete_project_btn.visible = True
+        self._refresh_btn.visible = True
         self._refresh_project_dropdown()
         self._refresh_selectors()
         self._update_appbar_cat_icons()
         self.page.update()
+        self._preload_profile_files(project, confirm=False)
 
-    def _show_new_project_dialog(self, e: object = None) -> None:
+    def _preload_profile_files(self, project: Project, *, confirm: bool) -> None:
+        if not project.profiles_dir:
+            return
+        settings_display = self._economy_editor.settings_display
+        if settings_display is None:
+            return
+        scanned = self._profile_service.scan_profiles(project.profiles_dir)
+        files = sorted(
+            path
+            for entity, paths in scanned.items()
+            if self._economy_editor.is_editable_entity(entity)
+            for path in paths.values()
+        )
+        if not files:
+            return
+        estimate = estimate_preload(files)
+        if not confirm or not should_confirm(estimate):
+            self.page.run_task(settings_display.preload_cached, files)
+            return
+        self._show_profile_preload_dialog(files, estimate)
+
+    def _show_profile_preload_dialog(self, files: list[str], estimate: object) -> None:
+        settings_display = self._economy_editor.settings_display
+        if settings_display is None:
+            return
+        count = getattr(estimate, "count", len(files))
+        seconds = getattr(estimate, "seconds", 0.0)
+        info_text = ft.Text(
+            f"{count} profile files… estimated ~{seconds:.1f}s to load",
+            size=14,
+        )
+        progress = ft.ProgressBar(value=None, expand=True)
+        progress_text = ft.Text("0/0", size=12)
+        progress_row = ft.Row([progress, progress_text], spacing=8, visible=False)
+        cancelled = {"value": False}
+
+        def cancel_load(e: object) -> None:
+            cancelled["value"] = True
+            self.page.pop_dialog()
+            self.page.update()
+
+        def start_load(e: object) -> None:
+            actions_row.visible = False
+            progress_row.visible = True
+            self.page.update()
+            self.page.run_task(
+                self._run_preload,
+                files,
+                cancelled,
+                progress,
+                progress_text,
+                settings_display,
+            )
+
+        actions_row = ft.Row(
+            [
+                ft.TextButton("OK", on_click=start_load),
+                ft.TextButton("Cancel", on_click=cancel_load),
+            ],
+            alignment=ft.MainAxisAlignment.END,
+        )
+        content = ft.Column(
+            [info_text, actions_row, progress_row],
+            tight=True,
+            width=420,
+        )
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Loading profiles"),
+            content=content,
+        )
+        self.page.show_dialog(dialog)
+        self.page.update()
+
+    async def _run_preload(
+        self,
+        files: list[str],
+        cancelled: dict[str, bool],
+        progress: ft.ProgressBar,
+        progress_text: ft.Text,
+        settings_display: SettingsTableDisplay,
+    ) -> None:
+        total = len(files)
+
+        def on_progress(done: int, total: int) -> None:
+            progress.value = done / total if total else 0
+            progress_text.value = f"{done}/{total}"
+            progress.update()
+            progress_text.update()
+
+        def cancel_check() -> bool:
+            return cancelled["value"]
+
+        try:
+            await settings_display.preload_cached(
+                files, on_progress=on_progress, cancel_check=cancel_check
+            )
+        except Exception as ex:  # noqa: BLE001
+            logger.exception("Profile preload failed unexpectedly")
+            progress.value = None
+            progress_text.value = f"Error: {ex}"
+            progress.update()
+            progress_text.update()
+            await asyncio.sleep(1.5)
+        finally:
+            self.page.pop_dialog()
+            self.page.update()
+
+    def _show_new_project_dialog(
+        self,
+        e: object = None,
+        name: str = "",
+        economy_dir: str = "",
+        profiles_dir: str = "",
+    ) -> None:
         name_field = ft.TextField(
             label="Project name",
             hint_text="MyServer",
+            value=name,
             autofocus=True,
         )
         economy_dir_field = ft.TextField(
             label="Economy directory",
             hint_text="/path/to/mpmissions/<map_name>",
+            value=economy_dir,
             expand=True,
         )
         profiles_dir_field = ft.TextField(
             label="Profiles directory (optional)",
             hint_text="/path/to/profiles",
+            value=profiles_dir,
             expand=True,
         )
 
@@ -521,7 +678,11 @@ class App:
                 return
             self.page.pop_dialog()
             self.page.update()
-            self._create_project(name, economy_dir, profiles_dir_field.value or "")
+            self._create_project(
+                name,
+                economy_dir,
+                profiles_dir_field.value or "",
+            )
 
         def cancel(ev: object) -> None:
             self.page.pop_dialog()
@@ -563,7 +724,7 @@ class App:
                     ),
                 ],
                 tight=True,
-                width=500,
+                width=520,
             ),
             actions=[
                 ft.TextButton("Cancel", on_click=cancel),
@@ -574,7 +735,10 @@ class App:
         self.page.update()
 
     def _create_project(
-        self, name: str, economy_dir: str, profiles_dir: str = ""
+        self,
+        name: str,
+        economy_dir: str,
+        profiles_dir: str = "",
     ) -> None:
         try:
             svc = EconomyService()
@@ -680,6 +844,7 @@ class App:
             self._economy_editor.control.visible = False
             self._delete_project_btn.visible = False
             self._save_btn.visible = False
+            self._refresh_btn.visible = False
             self.start_container.visible = True
             self._refresh_project_dropdown()
             self._refresh_selectors()
@@ -738,25 +903,119 @@ class App:
             f"[diag save] local saved; scheduling upload to "
             f"{project.remote_dir or cfg.remote_economy_dir}"
         )
+        profiles_dir = (
+            project.profiles_dir
+            if cfg.remote_profiles_dir and project.profiles_dir
+            else ""
+        )
         try:
             self.page.run_task(
                 self._upload_remote,
                 cfg,
                 project.economy_dir,
                 project.remote_dir or cfg.remote_economy_dir,
+                profiles_dir,
+                cfg.remote_profiles_dir if profiles_dir else "",
             )
         except RuntimeError as ex:
             print(f"[diag save] run_task error: {ex!r}")
+
+    def _on_refresh_project(self, e: object) -> None:
+        project = self._economy_editor.project
+        if project is None:
+            return
+        if project.is_remote and project.connection_id:
+            cfg = self._connection_manager.get(project.connection_id)
+            if cfg is None:
+                self._show_error("Connection not found for refresh.")
+                return
+            self.page.run_task(self._refresh_remote_project, cfg, project)
+        else:
+            self.page.run_task(self._refresh_local_project, project)
+
+    async def _refresh_local_project(self, project: Project) -> None:
+        self._economy_editor.load_project(project)
+        self._refresh_selectors()
+        self.page.update()
+        self._preload_profile_files(project, confirm=True)
+
+    async def _refresh_remote_project(
+        self, cfg: ConnectionConfig, project: Project
+    ) -> None:
+        remote_dir = project.remote_dir or cfg.remote_economy_dir
+        if not remote_dir:
+            self._show_error("Set the remote economy directory first.")
+            return
+        local_profiles = project.profiles_dir if cfg.remote_profiles_dir else ""
+        sync_progress = ft.ProgressBar(value=0, expand=True)
+        sync_progress_text = ft.Text("… connecting", size=12)
+        sync_dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Refreshing project"),
+            content=ft.Column(
+                [
+                    ft.Text(
+                        f"Syncing files from {cfg.host}:{cfg.port}",
+                        size=14,
+                    ),
+                    ft.Row([sync_progress]),
+                    sync_progress_text,
+                ],
+                tight=True,
+                width=420,
+            ),
+        )
+        self.page.show_dialog(sync_dialog)
+        self.page.update()
+        started = time.monotonic()
+        try:
+            await self._remote_sync.sync_to_local(
+                cfg,
+                remote_dir,
+                project.economy_dir,
+                remote_profiles_dir=cfg.remote_profiles_dir,
+                local_profiles_dir=local_profiles if local_profiles else "",
+                exclude_profiles=not_yet_available_entities(),
+                on_progress=self._make_sync_progress(
+                    sync_progress, sync_progress_text, started
+                ),
+            )
+        except YeteeError as ex:
+            self.page.pop_dialog()
+            self._show_error(f"Failed to refresh project: {ex}")
+            return
+        except ValueError as ex:
+            self.page.pop_dialog()
+            self._show_error(str(ex))
+            return
+        except Exception as ex:  # noqa: BLE001
+            self.page.pop_dialog()
+            self._show_error(f"Failed to refresh project: {ex}")
+            return
+        self.page.pop_dialog()
+        self._economy_editor.load_project(project)
+        self._refresh_selectors()
+        self.page.update()
+        self._preload_profile_files(project, confirm=True)
 
     async def _upload_remote(
         self,
         cfg: ConnectionConfig,
         local_dir: str,
         remote_dir: str,
+        local_profiles_dir: str = "",
+        remote_profiles_dir: str = "",
     ) -> None:
         print(f"[diag save] _upload_remote start: {local_dir} -> {remote_dir}")
         try:
-            await self._remote_sync.upload_to_remote(cfg, local_dir, remote_dir)
+            await self._remote_sync.upload_to_remote(
+                cfg,
+                local_dir,
+                remote_dir,
+                local_profiles_dir=local_profiles_dir,
+                remote_profiles_dir=remote_profiles_dir,
+                exclude_profiles=not_yet_available_entities(),
+            )
             print("[diag save] UPLOAD OK")
         except Exception as ex:  # noqa: BLE001
             print(f"[diag save] UPLOAD FAILED: {type(ex).__name__}: {ex!r}")
@@ -796,7 +1055,7 @@ class App:
         for index, cfg in enumerate(connections):
             label = cfg.project_name or cfg.host
             title = f"{label} · {cfg.host}:{cfg.port} ({cfg.username})"
-            subtitle = f"Remote dir: {cfg.remote_economy_dir or 'not set'}"
+            subtitle = f"Remote dir: {cfg.remote_economy_dir or 'not set'} | Profiles: {cfg.remote_profiles_dir or 'not set'}"
 
             async def open_remote(_e: object, c: ConnectionConfig = cfg) -> None:
                 await self._open_remote_project(c)
@@ -888,6 +1147,11 @@ class App:
             hint_text="mpmissions/<map_name>",
             expand=True,
         )
+        remote_profiles_field = ft.TextField(
+            label="Remote profiles directory (optional)",
+            hint_text="profiles",
+            expand=True,
+        )
 
         async def pick_key(ev: object) -> None:
             files = await ft.FilePicker().pick_files(
@@ -904,8 +1168,14 @@ class App:
 
         async def save(ev: object) -> None:
             cfg = self._build_connection_form(
-                protocol_field, host_field, port_field, username_field,
-                remote_dir_field, key_field, project_name_field,
+                protocol_field,
+                host_field,
+                port_field,
+                username_field,
+                remote_dir_field,
+                remote_profiles_field,
+                key_field,
+                project_name_field,
             )
             self._connection_manager.add(cfg, password_field.value or "")
             self.page.pop_dialog()
@@ -928,6 +1198,7 @@ class App:
                     ft.Row([key_field, key_browse_btn], spacing=4),
                     project_name_field,
                     remote_dir_field,
+                    remote_profiles_field,
                 ],
                 scroll=ft.ScrollMode.AUTO,
                 tight=True,
@@ -948,6 +1219,7 @@ class App:
         port_field: object,
         username_field: object,
         remote_dir_field: object,
+        remote_profiles_field: object,
         key_field: object,
         project_name_field: object,
     ) -> ConnectionConfig:
@@ -959,6 +1231,7 @@ class App:
             username=str(getattr(username_field, "value", "")),
             key_path=str(getattr(key_field, "value", "")),
             remote_economy_dir=str(getattr(remote_dir_field, "value", "")),
+            remote_profiles_dir=str(getattr(remote_profiles_field, "value", "")),
             project_name=str(getattr(project_name_field, "value", "")),
         )
 
@@ -970,23 +1243,62 @@ class App:
         local_staging = os.path.join(
             os.path.expanduser("~"), ".yetee", "workspace", cfg.id
         )
+        local_profiles = os.path.join(
+            os.path.expanduser("~"), ".yetee", "workspace", cfg.id, "profiles"
+        )
+        sync_progress = ft.ProgressBar(value=0, expand=True)
+        sync_progress_text = ft.Text("… connecting", size=12)
+        sync_dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Opening remote project"),
+            content=ft.Column(
+                [
+                    ft.Text(
+                        f"Syncing files from {cfg.host}:{cfg.port}",
+                        size=14,
+                    ),
+                    ft.Row([sync_progress]),
+                    sync_progress_text,
+                ],
+                tight=True,
+                width=420,
+            ),
+        )
+        self.page.show_dialog(sync_dialog)
+        self.page.update()
+        started = time.monotonic()
         try:
-            await self._remote_sync.sync_to_local(cfg, remote_dir, local_staging)
+            await self._remote_sync.sync_to_local(
+                cfg,
+                remote_dir,
+                local_staging,
+                remote_profiles_dir=cfg.remote_profiles_dir,
+                local_profiles_dir=local_profiles if cfg.remote_profiles_dir else "",
+                exclude_profiles=not_yet_available_entities(),
+                on_progress=self._make_sync_progress(
+                    sync_progress, sync_progress_text, started
+                ),
+            )
         except YeteeError as ex:
+            self.page.pop_dialog()
             self._show_error(f"Failed to open remote project: {ex}")
             return
         except ValueError as ex:
+            self.page.pop_dialog()
             self._show_error(str(ex))
             return
         except Exception as ex:  # noqa: BLE001
+            self.page.pop_dialog()
             self._show_error(f"Failed to open remote project: {ex}")
             return
+        self.page.pop_dialog()
         self._connection_manager.set_active(cfg.id)
         types_dir = EconomyService().get_types_dir(local_staging)
         project = Project(
             name=cfg.project_name or cfg.host,
             economy_dir=local_staging,
             types_dir=types_dir,
+            profiles_dir=local_profiles if cfg.remote_profiles_dir else "",
             connection_id=cfg.id,
             remote_dir=remote_dir,
         )
@@ -995,6 +1307,34 @@ class App:
         self.page.update()
         self._open_project(project)
 
+    def _make_sync_progress(
+        self,
+        progress: ft.ProgressBar,
+        progress_text: ft.Text,
+        started: float,
+    ) -> Callable[[int, int], None]:
+        def on_progress(done: int, total: int) -> None:
+            fraction = done / total if total else 0
+            progress.value = fraction
+            progress.update()
+            elapsed = time.monotonic() - started
+            if done > 0 and elapsed > 0:
+                rate = done / elapsed
+                remaining = max(int((total - done) / rate), 0) if rate else 0
+            else:
+                remaining = 0
+            progress_text.value = f"{done}/{total} · ~{remaining}s left"
+            progress_text.update()
+
+        return on_progress
+
+    def _make_sync_status(self, progress_text: ft.Text) -> Callable[[str], None]:
+        def on_status(message: str) -> None:
+            progress_text.value = message
+            progress_text.update()
+
+        return on_status
+
     def _delete_connection(self, cfg: ConnectionConfig) -> None:
         self._connection_manager.remove(cfg.id)
         self.page.pop_dialog()
@@ -1002,9 +1342,11 @@ class App:
         self._show_connections_dialog()
 
     async def _test_connection(self, cfg: ConnectionConfig) -> None:
-        print(f"[diag] _test_connection start: protocol={cfg.protocol} "
-              f"host={cfg.host} port={cfg.port} user={cfg.username} "
-              f"key={cfg.key_path!r} remote_dir={cfg.remote_economy_dir!r}")
+        print(
+            f"[diag] _test_connection start: protocol={cfg.protocol} "
+            f"host={cfg.host} port={cfg.port} user={cfg.username} "
+            f"key={cfg.key_path!r} remote_dir={cfg.remote_economy_dir!r}"
+        )
         try:
             conn = self._connection_manager.create(cfg)
             print(f"[diag] created connection object: {type(conn).__name__}")
@@ -1124,6 +1466,13 @@ class App:
         await self._save_setting("funny_enabled", e.control.value)
         self._economy_editor.file_display.update_funny_visibility()
 
+    async def _on_unhandled_editors_change(self, e: ft.ControlEvent) -> None:
+        self.show_unhandled_mod_editors = bool(e.control.value)
+        self._economy_editor.set_show_unhandled_editors(self.show_unhandled_mod_editors)
+        await self._save_setting(
+            "show_unhandled_mod_editors", self.show_unhandled_mod_editors
+        )
+
 
 def main(page: ft.Page) -> None:
     setup_logging()
@@ -1138,6 +1487,7 @@ def main(page: ft.Page) -> None:
         economy_editor=services["economy_editor"],
         connection_manager=services["connection_manager"],
         remote_sync_service=services["remote_sync_service"],
+        profile_service=services["profile_service"],
     )
     page.update()
 

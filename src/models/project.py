@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -13,6 +13,7 @@ class Project:
     profiles_dir: str = ""
     connection_id: str = ""
     remote_dir: str = ""
+    custom_entities: dict[str, dict[str, str]] = field(default_factory=dict)
     created_at: float = 0.0
     last_opened: float | None = None
 
@@ -28,6 +29,7 @@ class Project:
             "profiles_dir": self.profiles_dir,
             "connection_id": self.connection_id,
             "remote_dir": self.remote_dir,
+            "custom_entities": self.custom_entities,
             "created_at": self.created_at,
             "last_opened": self.last_opened,
         }
@@ -45,6 +47,15 @@ class Project:
         if last_opened_raw is not None:
             assert isinstance(last_opened_raw, (int, float))
             last_opened = float(last_opened_raw)
+        custom_raw = d.get("custom_entities", {})
+        assert isinstance(custom_raw, dict)
+        custom_entities: dict[str, dict[str, str]] = {}
+        for name, files in custom_raw.items():
+            if not isinstance(files, dict):
+                continue
+            custom_entities[str(name)] = {
+                str(label): str(path) for label, path in files.items()
+            }
         return cls(
             name=str(d.get("name", "")),
             economy_dir=str(economy_dir),
@@ -52,6 +63,7 @@ class Project:
             profiles_dir=str(d.get("profiles_dir", "")),
             connection_id=str(d.get("connection_id", "")),
             remote_dir=str(d.get("remote_dir", "")),
+            custom_entities=custom_entities,
             created_at=float(created_at_raw),
             last_opened=last_opened,
         )

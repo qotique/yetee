@@ -292,3 +292,65 @@ def test_collect_flag_names(small_types_file, mock_page):
     assert "count_in_cargo" in names
     assert "count_in_map" in names
     assert "count_in_player" in names
+
+
+# ── Text files (json / txt) ─────────────────────────────────────────────
+
+
+def test_load_json_file_uses_text_mode(mock_page, tmp_path):
+    path = tmp_path / "config.json"
+    path.write_text('{"a": 1}', encoding="utf-8")
+    fd = FileDisplay(page=mock_page)
+    fd.load_file(str(path))
+    assert fd._text_mode is True
+    assert fd._text_editor.value == '{"a": 1}'
+    assert fd._path == str(path)
+
+
+def test_load_txt_file_uses_text_mode(mock_page, tmp_path):
+    import asyncio
+
+    path = tmp_path / "readme.txt"
+    path.write_text("hello\nworld", encoding="utf-8")
+    fd = FileDisplay(page=mock_page)
+    asyncio.run(fd.load_file_async(str(path)))
+    assert fd._text_mode is True
+    assert fd._text_editor.value == "hello\nworld"
+
+
+def test_load_xml_kd_file_uses_table_mode(small_types_file, mock_page):
+    fd = FileDisplay(page=mock_page)
+    fd.load_file(str(small_types_file))
+    assert fd._text_mode is False
+    assert len(fd._rows) == 3
+
+
+def test_save_text_file_writes_content(mock_page, tmp_path):
+    path = tmp_path / "config.json"
+    path.write_text("{}", encoding="utf-8")
+    fd = FileDisplay(page=mock_page)
+    fd.load_file(str(path))
+    fd._text_editor.value = '{"new": true}'
+    fd.save_current(None)
+    assert path.read_text(encoding="utf-8") == '{"new": true}'
+
+
+def test_save_text_file_single_file_flush(mock_page, tmp_path):
+    path = tmp_path / "notes.txt"
+    path.write_text("v1", encoding="utf-8")
+    fd = FileDisplay(page=mock_page)
+    fd.load_file(str(path))
+    fd._text_editor.value = "v2"
+    fd.save_file()
+    assert path.read_text(encoding="utf-8") == "v2"
+
+
+def test_text_mode_reset_after_xml_load(small_types_file, mock_page, tmp_path):
+    txt = tmp_path / "a.txt"
+    txt.write_text("x", encoding="utf-8")
+    fd = FileDisplay(page=mock_page)
+    fd.load_file(str(txt))
+    assert fd._text_mode is True
+    fd.load_file(str(small_types_file))
+    assert fd._text_mode is False
+    assert len(fd._rows) == 3

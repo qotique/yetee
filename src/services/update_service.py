@@ -8,7 +8,6 @@ import urllib.request
 import flet as ft
 import webbrowser
 
-from exceptions import NetworkError
 
 logger = logging.getLogger(__name__)
 

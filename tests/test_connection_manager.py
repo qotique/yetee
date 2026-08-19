@@ -57,7 +57,7 @@ class InMemoryConnection(IRemoteConnection):
         names = {
             os.path.basename(p)
             for p in self.files
-            if p.startswith(prefix) and "/" not in p[len(prefix):]
+            if p.startswith(prefix) and "/" not in p[len(prefix) :]
         }
         return sorted(names)
 
@@ -142,7 +142,9 @@ def test_manager_add_persists_secret() -> None:
 
 
 def test_manager_active() -> None:
-    manager = ConnectionManager(ConnectionRepository("/tmp/yetee_test2.json"), FakeKeychain())
+    manager = ConnectionManager(
+        ConnectionRepository("/tmp/yetee_test2.json"), FakeKeychain()
+    )
     manager.add(make_config())
     manager.set_active("c1")
     assert manager.active_connection is not None
@@ -170,7 +172,9 @@ def test_manager_remove_clears_secret() -> None:
 
 def test_manager_create_injects_password() -> None:
     register_connection("mem", InMemoryConnection)
-    manager = ConnectionManager(ConnectionRepository("/tmp/yetee_test4.json"), FakeKeychain())
+    manager = ConnectionManager(
+        ConnectionRepository("/tmp/yetee_test4.json"), FakeKeychain()
+    )
     cfg = make_config("mem")
     manager.add(cfg, "sekret")
     conn = manager.create(cfg)
@@ -180,7 +184,9 @@ def test_manager_create_injects_password() -> None:
 
 def test_sync_to_local_downloads_economy(tmp_path) -> None:
     register_connection("mem", InMemoryConnection)
-    manager = ConnectionManager(ConnectionRepository("/tmp/yetee_test5.json"), FakeKeychain())
+    manager = ConnectionManager(
+        ConnectionRepository("/tmp/yetee_test5.json"), FakeKeychain()
+    )
     cfg = make_config("mem")
     local = tmp_path / "local"
     asyncio.run(RemoteSyncService(manager).sync_to_local(cfg, "m/mp", str(local)))
@@ -195,7 +201,9 @@ def test_upload_to_remote_writes_back(tmp_path) -> None:
         "m/mp/db/types.xml": "<types></types>",
     }
     register_connection("mem", InMemoryConnection)
-    manager = ConnectionManager(ConnectionRepository("/tmp/yetee_test6.json"), FakeKeychain())
+    manager = ConnectionManager(
+        ConnectionRepository("/tmp/yetee_test6.json"), FakeKeychain()
+    )
     cfg = make_config("mem")
     local = tmp_path / "local"
     os.makedirs(local / "db", exist_ok=True)
