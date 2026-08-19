@@ -1016,18 +1016,14 @@ class FileDisplay:
             self._detail_panel._value_chipset.remove(v)
 
     def _on_batch_action(self, key: str) -> None:
-        if key == "category":
-            self._batch_save_category()
-        elif key == "usage":
-            self._batch_save_usage()
-        elif key == "value":
-            self._batch_save_value()
-        elif key.startswith("flag:"):
-            self._batch_save_flag(key[5:])
+        if key.startswith("flag:"):
+            self._batch_apply_flag(key[5:])
+        elif key in ("usage", "value"):
+            self._batch_apply_chipset(key)
         else:
-            self._batch_save_field(key)
+            self._batch_apply_field(key)
 
-    def _batch_save_field(self, field_key: str) -> None:
+    def _batch_apply_field(self, field_key: str) -> None:
         self._undo_mgr.record(self._undo_mgr.take_snapshot(self._rows))
         self._sync_page_back()
         w = self._batch_fields.get(field_key)
@@ -1036,62 +1032,19 @@ class FileDisplay:
         value = w.value or ""
         for idx in self._selected_row_indices:
             self._rows[idx].values[field_key] = value
-        self._dirty_state.mark_dirty()
-        self._render_page()
-        self._save_text.value = (
-            f"{field_key} applied to {len(self._selected_row_indices)} rows"
-        )
-        self._save_text.color = ft.Colors.GREEN
-        self.control.update()
+        label = "Category" if field_key == "category" else field_key
+        self._finish_batch_apply(label)
 
-    def _batch_save_category(self) -> None:
+    def _batch_apply_chipset(self, column_key: str) -> None:
         self._undo_mgr.record(self._undo_mgr.take_snapshot(self._rows))
         self._sync_page_back()
-        w = self._batch_fields.get("category")
-        if w is None:
-            return
-        value = w.value or ""
+        chipset = getattr(self._batch_panel, f"_{column_key}_chipset", None)
+        parts = ", ".join(chipset.get_values()) if chipset else ""
         for idx in self._selected_row_indices:
-            self._rows[idx].values["category"] = value
-        self._dirty_state.mark_dirty()
-        self._render_page()
-        self._save_text.value = (
-            f"Category applied to {len(self._selected_row_indices)} rows"
-        )
-        self._save_text.color = ft.Colors.GREEN
-        self.control.update()
+            self._rows[idx].values[column_key] = parts
+        self._finish_batch_apply(column_key.capitalize())
 
-    def _batch_save_usage(self) -> None:
-        self._undo_mgr.record(self._undo_mgr.take_snapshot(self._rows))
-        self._sync_page_back()
-        bp = getattr(self._batch_panel, "_usage_chipset", None)
-        parts = ", ".join(bp.get_values()) if bp else ""
-        for idx in self._selected_row_indices:
-            self._rows[idx].values["usage"] = parts
-        self._dirty_state.mark_dirty()
-        self._render_page()
-        self._save_text.value = (
-            f"Usage applied to {len(self._selected_row_indices)} rows"
-        )
-        self._save_text.color = ft.Colors.GREEN
-        self.control.update()
-
-    def _batch_save_value(self) -> None:
-        self._undo_mgr.record(self._undo_mgr.take_snapshot(self._rows))
-        self._sync_page_back()
-        bp = getattr(self._batch_panel, "_value_chipset", None)
-        parts = ", ".join(bp.get_values()) if bp else ""
-        for idx in self._selected_row_indices:
-            self._rows[idx].values["value"] = parts
-        self._dirty_state.mark_dirty()
-        self._render_page()
-        self._save_text.value = (
-            f"Value applied to {len(self._selected_row_indices)} rows"
-        )
-        self._save_text.color = ft.Colors.GREEN
-        self.control.update()
-
-    def _batch_save_flag(self, flag_name: str) -> None:
+    def _batch_apply_flag(self, flag_name: str) -> None:
         self._undo_mgr.record(self._undo_mgr.take_snapshot(self._rows))
         self._sync_page_back()
         cb = self._batch_flag_checkboxes.get(flag_name)
@@ -1100,13 +1053,19 @@ class FileDisplay:
         value = "1" if cb.value else "0"
         for idx in self._selected_row_indices:
             self._rows[idx].flags[flag_name] = value
+        self._finish_batch_apply(flag_name)
+
+    def _finish_batch_apply(self, label: str) -> None:
         self._dirty_state.mark_dirty()
         self._render_page()
         self._save_text.value = (
-            f"{flag_name} applied to {len(self._selected_row_indices)} rows"
+            f"{label} applied to {len(self._selected_row_indices)} rows"
         )
         self._save_text.color = ft.Colors.GREEN
         self.control.update()
+
+    def _batch_save_field(self, field_key: str) -> None:
+        self._batch_apply_field(field_key)
 
     def _clear_selection(self) -> None:
         self._mouse_down = False
