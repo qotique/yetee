@@ -39,6 +39,7 @@ from protocols import IXmlRepository, IDetailPanel, IBatchPanel
 from services.entertainment_service import EntertainmentService
 from ui.batch_panel import BatchPanel
 from ui.detail_panel import DetailPanel
+from ui.filter_menu import FilterMenu, FilterSpec
 
 import flet as ft
 
@@ -216,40 +217,37 @@ class FileDisplay:
             on_change=self._on_case_sensitive_changed,
             tooltip="Match search text exactly (case-sensitive)",
         )
-        self._category_filter_values: list[str] = []
-        menu_bar_style = ft.MenuStyle(
-            fixed_size=ft.Size.from_height(32),
-            shape=ft.RoundedRectangleBorder(radius=10),
-        )
-        self._category_filter_menu = ft.MenuBar(
-            style=menu_bar_style,
-            controls=[
-                ft.SubmenuButton(
-                    content=ft.Text("↑Category"),
-                    controls=self._build_category_menu_items(),
-                )
-            ],
-        )
-        self._usage_filter_values: list[str] = []
-        self._usage_filter_menu = ft.MenuBar(
-            style=menu_bar_style,
-            controls=[
-                ft.SubmenuButton(
-                    content=ft.Text("↑Usage"),
-                    controls=self._build_usage_menu_items(),
-                )
-            ],
-        )
-        self._value_filter_values: list[str] = []
-        self._value_filter_menu = ft.MenuBar(
-            style=menu_bar_style,
-            controls=[
-                ft.SubmenuButton(
-                    content=ft.Text("↑Value"),
-                    controls=self._build_value_menu_items(),
-                )
-            ],
-        )
+        self._filter_specs: list[FilterSpec] = [
+            FilterSpec(
+                key="category",
+                label="↑Category",
+                options=CATEGORIES,
+                empty_marker=EMPTY_CATEGORY_MARKER,
+            ),
+            FilterSpec(
+                key="usage",
+                label="↑Usage",
+                options=USAGES,
+                empty_marker=EMPTY_USAGE_MARKER,
+            ),
+            FilterSpec(
+                key="value",
+                label="↑Value",
+                options=VALUES_LIST,
+                empty_marker=EMPTY_VALUE_MARKER,
+            ),
+        ]
+        self._filter_menus: dict[str, FilterMenu] = {
+            spec.key: FilterMenu(
+                spec=spec,
+                on_changed=lambda: self._on_search(None),
+                is_cat=lambda: bool(
+                    self._entertainment_service
+                    and self._entertainment_service.cat_mode
+                ),
+            )
+            for spec in self._filter_specs
+        }
 
         self._tips_switcher = ft.AnimatedSwitcher(
             content=ft.Text(
@@ -375,9 +373,7 @@ class FileDisplay:
                             self._search_field,
                             self._case_sensitive_checkbox,
                             ft.Divider(),
-                            self._category_filter_menu,
-                            self._usage_filter_menu,
-                            self._value_filter_menu,
+                            *[self._filter_menus[s.key].menu for s in self._filter_specs],
                         ],
                         alignment=ft.MainAxisAlignment.CENTER,
                     ),
@@ -495,12 +491,8 @@ class FileDisplay:
         self._pagination.reset()
         self._search.reset()
         self._search_field.value = ""
-        self._category_filter_values.clear()
-        self._rebuild_category_menu()
-        self._usage_filter_values.clear()
-        self._rebuild_usage_menu()
-        self._value_filter_values.clear()
-        self._rebuild_value_menu()
+        for menu in self._filter_menus.values():
+            menu.clear()
         self._dirty_state.reset()
         self._undo_mgr.clear()
 
@@ -1145,9 +1137,10 @@ class FileDisplay:
             case_sensitive=self._case_sensitive_checkbox.value,
         )
         self._search.set_filters(
-            category="|".join(self._category_filter_values),
-            usage="|".join(self._usage_filter_values),
-            value="|".join(self._value_filter_values),
+            {
+                key: menu.filter_value()
+                for key, menu in self._filter_menus.items()
+            }
         )
         self._filtered = self._search.filter_rows(self._rows)
 
@@ -1179,123 +1172,6 @@ class FileDisplay:
         except asyncio.CancelledError:
             return
         self._on_search(None)
-
-    def _build_category_menu_items(self) -> list[ft.MenuItemButton]:
-        is_cat = self._entertainment_service and self._entertainment_service.cat_mode
-        icon_fn = ft.Icons.PETS if is_cat else ft.Icons.CHECK
-        items = []
-        for cat in CATEGORIES:
-            selected = cat in self._category_filter_values
-            items.append(
-                ft.MenuItemButton(
-                    content=ft.Text(cat),
-                    leading=ft.Icon(icon_fn) if selected else None,
-                    on_click=lambda _, c=cat: self._on_category_menu_click(c),
-                    close_on_click=False,
-                )
-            )
-        empty_selected = EMPTY_CATEGORY_MARKER in self._category_filter_values
-        items.append(
-            ft.MenuItemButton(
-                content=ft.Text("(empty)"),
-                leading=ft.Icon(icon_fn) if empty_selected else None,
-                on_click=lambda _: self._on_category_menu_click(EMPTY_CATEGORY_MARKER),
-                close_on_click=False,
-            )
-        )
-        return items
-
-    def _on_category_menu_click(self, cat: str) -> None:
-        if cat in self._category_filter_values:
-            self._category_filter_values.remove(cat)
-        else:
-            self._category_filter_values.append(cat)
-        self._rebuild_category_menu()
-        self._on_search(None)
-
-    def _rebuild_category_menu(self) -> None:
-        for ctrl in self._category_filter_menu.controls:
-            if isinstance(ctrl, ft.SubmenuButton):
-                ctrl.controls = self._build_category_menu_items()
-                ctrl.update()
-
-    def _build_usage_menu_items(self) -> list[ft.MenuItemButton]:
-        is_cat = self._entertainment_service and self._entertainment_service.cat_mode
-        icon_fn = ft.Icons.PETS if is_cat else ft.Icons.CHECK
-        items = []
-        for val in USAGES:
-            selected = val in self._usage_filter_values
-            items.append(
-                ft.MenuItemButton(
-                    content=ft.Text(val),
-                    leading=ft.Icon(icon_fn) if selected else None,
-                    on_click=lambda _, v=val: self._on_usage_menu_click(v),
-                    close_on_click=False,
-                )
-            )
-        empty_selected = EMPTY_USAGE_MARKER in self._usage_filter_values
-        items.append(
-            ft.MenuItemButton(
-                content=ft.Text("(empty)"),
-                leading=ft.Icon(icon_fn) if empty_selected else None,
-                on_click=lambda _: self._on_usage_menu_click(EMPTY_USAGE_MARKER),
-                close_on_click=False,
-            )
-        )
-        return items
-
-    def _on_usage_menu_click(self, val: str) -> None:
-        if val in self._usage_filter_values:
-            self._usage_filter_values.remove(val)
-        else:
-            self._usage_filter_values.append(val)
-        self._rebuild_usage_menu()
-        self._on_search(None)
-
-    def _rebuild_usage_menu(self) -> None:
-        for ctrl in self._usage_filter_menu.controls:
-            if isinstance(ctrl, ft.SubmenuButton):
-                ctrl.controls = self._build_usage_menu_items()
-                ctrl.update()
-
-    def _build_value_menu_items(self) -> list[ft.MenuItemButton]:
-        is_cat = self._entertainment_service and self._entertainment_service.cat_mode
-        icon_fn = ft.Icons.PETS if is_cat else ft.Icons.CHECK
-        items = []
-        for val in VALUES_LIST:
-            selected = val in self._value_filter_values
-            items.append(
-                ft.MenuItemButton(
-                    content=ft.Text(val),
-                    leading=ft.Icon(icon_fn) if selected else None,
-                    on_click=lambda _, v=val: self._on_value_menu_click(v),
-                    close_on_click=False,
-                )
-            )
-        empty_selected = EMPTY_VALUE_MARKER in self._value_filter_values
-        items.append(
-            ft.MenuItemButton(
-                content=ft.Text("(empty)"),
-                leading=ft.Icon(icon_fn) if empty_selected else None,
-                on_click=lambda _: self._on_value_menu_click(EMPTY_VALUE_MARKER),
-                close_on_click=False,
-            )
-        )
-        return items
-
-    def _on_value_menu_click(self, val: str) -> None:
-        if val in self._value_filter_values:
-            self._value_filter_values.remove(val)
-        else:
-            self._value_filter_values.append(val)
-        self._rebuild_value_menu()
-        self._on_search(None)
-
-    def _rebuild_value_menu(self) -> None:
-        for ctrl in self._value_filter_menu.controls:
-            if isinstance(ctrl, ft.SubmenuButton):
-                ctrl.controls = self._build_value_menu_items()
-                ctrl.update()
 
     def _render_page(self) -> None:
         total = len(self._filtered)
@@ -1400,9 +1276,8 @@ class FileDisplay:
             self._search_field,
         ):
             self._try_update(ctrl)
-        self._rebuild_category_menu()
-        self._rebuild_usage_menu()
-        self._rebuild_value_menu()
+        for menu in self._filter_menus.values():
+            menu.rebuild()
         self._update_fab_icon()
         self._update_chipset_cat_icons(is_cat)
 
@@ -1706,12 +1581,8 @@ class FileDisplay:
         self.control.content = self._keyboard_listener
         self._table_ctrl.clear()
         self._save_text.value = ""
-        self._category_filter_values.clear()
-        self._rebuild_category_menu()
-        self._usage_filter_values.clear()
-        self._rebuild_usage_menu()
-        self._value_filter_values.clear()
-        self._rebuild_value_menu()
+        for menu in self._filter_menus.values():
+            menu.clear()
         self.control.visible = False
         self._dirty_state.reset()
         self._pagination.reset()
