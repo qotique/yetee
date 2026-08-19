@@ -1,6 +1,6 @@
 [project]
 name = "types-editor"
-version = "0.2.1"
+version = "0.6.1"
 description = "DayZ economy type files editor"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -29,6 +29,7 @@ dev = [
     "pyinstaller",
     "mypy>=1.8.0",
     "pytest-asyncio>=0.23.0",
+    "pytest-cov>=5.0.0",
     "pylint>=3.0.0",
 ]
 

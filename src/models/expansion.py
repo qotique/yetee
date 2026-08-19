@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import flet as ft
 
-from custom_entities import EntityConfig, FileConfig, register_entity
-from form_schema import (
+from models.custom_entities import EntityConfig, FileConfig, register_entity
+from models.form_schema import (
     FormDict,
     FormField,
     FormGrid,

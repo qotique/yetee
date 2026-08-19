@@ -20,7 +20,7 @@ GitHub/README без дополнительных инструментов. Фа
 | Sequence: file load / Загрузка файла | [sequence-load.md](sequence-load.md) | `EconomyEditor → FileDisplay → XmlRepository → FileCache` flow |
 | Sequence: save + remote / Сохранение + remote | [sequence-save.md](sequence-save.md) | `save → RemoteSyncService.upload_to_remote` flow |
 | Class: controllers / Контроллеры | [class-controllers.puml](class-controllers.puml) | TableController, SearchController, PaginationController, DirtyStateManager, UndoManager |
-| Class: services & protocols / Сервисы и протоколы | [class-services.puml](class-services.puml) | Services implementing Protocol interfaces from `src/protocols.py` |
+| Class: services & protocols / Сервисы и протоколы | [class-services.puml](class-services.puml) | Services implementing Protocol interfaces from `src/core/protocols.py` |
 | Class: remote transports / Remote-транспорты | [class-transports.puml](class-transports.puml) | IRemoteConnection → SSH/FTP, factory, ConnectionManager |
 | Class: models / Модели | [class-models.puml](class-models.puml) | Dataclass models and their relations |
 

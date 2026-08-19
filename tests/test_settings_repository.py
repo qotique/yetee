@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from exceptions import AccessError, ParseError
+from core.exceptions import AccessError, ParseError
 from models.field_def import FieldType
 from repository.settings_repository import (
     JsonSettingsRepository,

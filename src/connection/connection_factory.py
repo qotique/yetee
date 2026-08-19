@@ -5,7 +5,7 @@ from collections.abc import Callable
 from connection.ftp_connection import FTPConnection
 from connection.ssh_connection import SSHConnection
 from models.connection import ConnectionConfig
-from protocols import IRemoteConnection
+from core.protocols import IRemoteConnection
 
 
 _REGISTRY: dict[str, Callable[..., IRemoteConnection]] = {

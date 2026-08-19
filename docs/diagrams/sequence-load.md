@@ -1,17 +1,19 @@
 # Sequence: file load / Последовательность: загрузка файла
 
-The flow of opening a types/events file. `FileDisplay` and `EventDisplay` kick
-off background loading themselves through the shared cache and reusable
-controllers.
+The flow of opening a types/events file. `FileDisplay` delegates state
+management and operations to the flet-free `FileSession` controller, then
+renders the result through the reusable controllers.
 
-Поток открытия types/events файла. `FileDisplay` и `EventDisplay` сами
-запускают фоновую загрузку через общий кэш и переиспользуемые контроллеры.
+Поток открытия types/events файла. `FileDisplay` делегирует управление
+состоянием и операции flet-free контроллеру `FileSession`, затем рендерит
+результат через переиспользуемые контроллеры.
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant EE as EconomyEditor
     participant FD as FileDisplay
+    participant FS as FileSession
     participant TBC as TableController
     participant UM as UndoManager
     participant S as SearchController
@@ -24,31 +26,33 @@ sequenceDiagram
     FD->>FD: schedule_load()
     FD->>FD: _load_current_file_async()
 
-    FD->>R: parse_file_async(path)
+    FD->>FS: load_setup(path) / rows = xml_repo.parse_file(path)
+    FS->>R: parse_file_async(path)
     R->>C: get_rows(path)
     alt cache miss
         C-->>R: None
         R->>R: parse XML (lxml) -> list[RowData]
         R->>C: set_rows(path, rows)
     end
-    R-->>FD: rows
+    R-->>FS: rows
 
-    FD->>UM: take_snapshot(rows)
-    FD->>P: page_index / page_size
-    FD->>S: filter_rows(rows)
+    FS->>UM: record_undo (take_snapshot)
+    FD->>FS: apply_filter(query, filters)
+    FS->>S: set_search + set_filters + filter_rows(rows)
+    S-->>FS: filtered: list[int]
+    FS->>P: page_index / total_pages
     FD->>TBC: render(rows, filtered, page_idx)
-
     TBC-->>FD: UI (table) ready / готов
-    D->>D: mark_clean()
+    FD->>D: mark_clean() (via FileSession)
 ```
 
-Differences for events (`EventDisplay`): same flow, but `XmlRepository` is
-replaced by `EventRepository` (parses `cfgeventspawns.xml` → `RowData`), and
-`TableController`/`UndoManager` are reused.
+Differences for events (`EventDisplay`): same UI flow (no `FileSession` yet), but
+`XmlRepository` is replaced by `EventRepository` (parses `cfgeventspawns.xml` →
+`RowData`), and `TableController`/`UndoManager` are reused.
 
-Отличия для событий (`EventDisplay`): тот же поток, но `XmlRepository`
-заменяется на `EventRepository` (парсинг `cfgeventspawns.xml` → `RowData`),
-а `TableController`/`UndoManager` переиспользуются.
+Отличия для событий (`EventDisplay`): тот же UI-поток (пока без `FileSession`),
+но `XmlRepository` заменяется на `EventRepository` (парсинг `cfgeventspawns.xml`
+→ `RowData`), а `TableController`/`UndoManager` переиспользуются.
 
 ## Settings / custom-entity load / Загрузка настроек и кастомных сущностей
 
@@ -89,7 +93,7 @@ sequenceDiagram
 
 ## Form / master-detail load / Загрузка формы (master-detail)
 
-Entities with declared form schemas (`src/expansion.py` traders/categories/quests
+Entities with declared form schemas (`src/models/expansion.py` traders/categories/quests
 and any `register_form_schema`/`register_form_folder_schema`) route to
 `FormDisplay` instead of the table: `EconomyEditor` uses
 `entity_has_form_schemas(entity, files)` and wires
@@ -104,7 +108,7 @@ currently selected file is auto-expanded.
 their `Items`/`InventoryCargo` render as nested tile forms instead of raw JSON.
 
 Сущности с объявленными form-схемами (трейдеры/категории/квесты из
-`src/expansion.py` и любые `register_form_schema`/`register_form_folder_schema`)
+`src/models/expansion.py` и любые `register_form_schema`/`register_form_folder_schema`)
 маршрутизируются в `FormDisplay` вместо таблицы: `EconomyEditor` использует
 `entity_has_form_schemas(entity, files)` и подключает
 `form_display.on_file_select = switch_file`, чтобы мастер-список переключал файлы.

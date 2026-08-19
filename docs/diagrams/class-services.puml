@@ -1,14 +1,14 @@
 @startuml
-' Services and the Protocol interfaces they implement (src/protocols.py).
+' Services and the Protocol interfaces they implement (src/core/protocols.py).
 ' Regenerated from code: uv run pyreverse src -o puml -p yetee -d docs/diagrams/generated
 '
-' Сервисы и реализуемые ими Protocol-интерфейсы (src/protocols.py).
+' Сервисы и реализуемые ими Protocol-интерфейсы (src/core/protocols.py).
 ' Регенерируется из кода: uv run pyreverse src -o puml -p yetee -d docs/diagrams/generated
 
 skinparam classAttributeIconSize 0
 hide empty members
 
-' ---- Протоколы (src/protocols.py) ----
+' ---- Протоколы (src/core/protocols.py) ----
 interface IConfigService
 interface IEconomyService
 interface IProjectService
@@ -74,7 +74,7 @@ FileCache ..|> ICache
 ConnectionManager --> IRemoteConnection : "create()"
 RemoteSyncService --> ConnectionManager : "uses "
 
-' DI wires everything (composition root, src/di.py)
+' DI wires everything (composition root, src/core/di.py)
 FileDisplay ..> IXmlRepository
 FileDisplay ..> ICache
 EventDisplay ..> EventRepository

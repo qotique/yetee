@@ -6,8 +6,8 @@ from collections.abc import Callable
 
 import flet as ft
 
-from exceptions import AccessError, ParseError
-from form_schema import (
+from core.exceptions import AccessError, ParseError
+from models.form_schema import (
     FormDict,
     FormField,
     FormGrid,
@@ -66,7 +66,7 @@ class FormDisplay:
     """Master-detail form editor for custom entities.
 
     Loads a JSON document through ``JsonSettingsRepository.load_doc``, resolves
-    a ``FormSchema`` (declared in ``form_schema.py``/``expansion.py`` or built
+    a ``FormSchema`` (declared in ``models/form_schema.py``/``models/expansion.py`` or built
     automatically from the JSON structure) and renders a typed form on the
     right. When the entity has several files (or a single array-of-objects
     file) a master list on the left selects the current document / item.

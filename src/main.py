@@ -8,13 +8,13 @@ from collections.abc import Callable
 
 import flet as ft
 
-import expansion  # noqa: F401  (registers Expansion schemas at import)
-from di import create_app_services
-from exceptions import YeteeError
-from logging_setup import setup_logging
+import models.expansion  # noqa: F401  (registers Expansion schemas at import)
+from core.di import create_app_services
+from core.exceptions import YeteeError
+from core.logging_setup import setup_logging
 from models.connection import ConnectionConfig
 from models.project import Project
-from mod_handlers import not_yet_available_entities
+from models.mod_handlers import not_yet_available_entities
 from services.config_service import ConfigService
 from services.connection_manager import ConnectionManager
 from services.economy_service import EconomyService
@@ -25,12 +25,12 @@ from services.project_service import ProjectService
 from services.remote_sync_service import RemoteSyncService
 from services.settings_service import SettingsService, THEMES, LANGUAGES
 from services.update_service import UpdateService
-from settings_table_display import SettingsTableDisplay
+from ui.settings_table_display import SettingsTableDisplay
 from ui.economy_editor import EconomyEditor
 
 logger = logging.getLogger(__name__)
 
-VERSION = "0.6.0"
+VERSION = "0.6.1"
 
 
 class App:

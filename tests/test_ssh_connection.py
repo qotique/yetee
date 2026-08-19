@@ -5,7 +5,7 @@ import asyncssh
 import pytest
 
 from connection.ssh_connection import SSHConnection
-from exceptions import RemoteAuthError, RemoteConnectionError, RemoteTimeoutError
+from core.exceptions import RemoteAuthError, RemoteConnectionError, RemoteTimeoutError
 from models.connection import ConnectionConfig
 
 CONNECT_PATH = "connection.ssh_connection.asyncssh.connect"
