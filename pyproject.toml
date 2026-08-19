@@ -29,6 +29,7 @@ dev = [
     "pyinstaller",
     "mypy>=1.8.0",
     "pytest-asyncio>=0.23.0",
+    "pytest-cov>=5.0.0",
     "pylint>=3.0.0",
 ]
 
