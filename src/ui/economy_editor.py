@@ -7,18 +7,18 @@ from typing import TypeAlias
 
 import flet as ft
 
-from event_display import EventDisplay
-from file_display import FileDisplay
-from form_display import FormDisplay
-from form_schema import entity_has_form_schemas
+from ui.event_display import EventDisplay
+from ui.file_display import FileDisplay
+from ui.form_display import FormDisplay
+from models.form_schema import entity_has_form_schemas
 from models.project import Project
-from mod_handlers import is_not_yet_available
-from custom_entities import is_registered_entity
-from settings_table_display import SettingsTableDisplay
+from models.mod_handlers import is_not_yet_available
+from models.custom_entities import is_registered_entity
+from ui.settings_table_display import SettingsTableDisplay
 from services.config_service import ConfigService
 from services.economy_service import EconomyService
-from protocols import IProfileService
-from unavailable_display import UnavailableDisplay
+from core.protocols import IProfileService
+from ui.unavailable_display import UnavailableDisplay
 
 logger = logging.getLogger(__name__)
 

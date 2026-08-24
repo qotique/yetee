@@ -5,10 +5,10 @@ import logging
 import os
 from collections.abc import Callable
 
-from exceptions import RemoteConnectionError
+from core.exceptions import RemoteConnectionError
 from lxml import etree as ET
 from models.connection import ConnectionConfig
-from protocols import IRemoteConnection
+from core.protocols import IRemoteConnection
 from services.connection_manager import ConnectionManager
 from services.economy_service import (
     ECONOMY_DIR_FILES,

@@ -5,7 +5,7 @@ import logging
 import os
 from pathlib import Path
 
-from exceptions import AccessError
+from core.exceptions import AccessError
 from models.connection import ConnectionConfig
 
 logger = logging.getLogger(__name__)

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from custom_entities import RENDERER_TXT
+from models.custom_entities import RENDERER_TXT
 
 DEFAULT_MESSAGE = (
     "Editing for this mod is not available yet. Planned in a future version."

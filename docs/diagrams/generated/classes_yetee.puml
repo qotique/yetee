@@ -1,9 +1,9 @@
 @startuml classes_yetee
 set namespaceSeparator none
-class "AS_Mods" as src.mod_handlers.AS_Mods {
+class "AS_Mods" as src.models.mod_handlers.AS_Mods {
   name : str
 }
-class "<color:red>AccessError</color>" as src.exceptions.AccessError {
+class "<color:red>AccessError</color>" as src.core.exceptions.AccessError {
 }
 class "App" as src.main.App {
   check_updates : bool
@@ -18,7 +18,7 @@ class "App" as src.main.App {
   route_change(route: object) -> None
   view_pop(e: ft.ViewPopEvent) -> None
 }
-class "AppServices" as src.di.AppServices {
+class "AppServices" as src.core.di.AppServices {
   cache : FileCache
   config_service : ConfigService
   connection_manager : ConnectionManager
@@ -45,7 +45,7 @@ class "ChipSet" as src.ui.chip_set.ChipSet {
   remove(value: str) -> None
   set_cat_mode(enabled: bool) -> None
 }
-class "CommunityOnlineTools" as src.mod_handlers.CommunityOnlineTools {
+class "CommunityOnlineTools" as src.models.mod_handlers.CommunityOnlineTools {
   name : str
 }
 class "ConfigService" as src.services.config_service.ConfigService {
@@ -128,7 +128,7 @@ class "EconomyService" as src.services.economy_service.EconomyService {
   find_config(economy_dir: str) -> str | None
   get_all_editable_files(economy_dir: str) -> dict[str, str]
   get_economy_dir_files(economy_dir: str) -> dict[str, str]
-  get_expansion_files(economy_dir: str) -> dict[str, dict[str, str]]
+  get_expansion_files(economy_dir: str) -> dict[str, str]
   get_known_files(directory: str) -> dict[str, str]
   get_type_files(economy_dir: str) -> dict[str, str]
   get_types_dir(economy_dir: str) -> str
@@ -152,13 +152,13 @@ class "EntertainmentService" as src.services.entertainment_service.Entertainment
   get_stats_text() -> str
   record_edit(field_key: str) -> None
 }
-class "EntityConfig" as src.custom_entities.EntityConfig {
+class "EntityConfig" as src.models.custom_entities.EntityConfig {
   default
   files : dict[str, FileConfig]
   folders : dict[str, FileConfig]
   file_config(filename: str) -> FileConfig
 }
-class "EventDisplay" as src.event_display.EventDisplay {
+class "EventDisplay" as src.ui.event_display.EventDisplay {
   button_row : Row
   control : Container
   on_saved : Callable[[], None] | None
@@ -214,11 +214,11 @@ class "FileCache" as src.repository.file_cache.FileCache {
   set_rows(path: str, rows: list[RowData]) -> None
   set_tree(path: str, tree: ET.ElementTree) -> None
 }
-class "FileConfig" as src.custom_entities.FileConfig {
+class "FileConfig" as src.models.custom_entities.FileConfig {
   columns : tuple[FieldDef, ...]
   renderer : str
 }
-class "FileDisplay" as src.file_display.FileDisplay {
+class "FileDisplay" as src.ui.file_display.FileDisplay {
   button_row : Row
   cache : FileCache
   control : Container
@@ -234,15 +234,68 @@ class "FileDisplay" as src.file_display.FileDisplay {
   update_cat_icons() -> None
   update_funny_visibility() -> None
 }
-class "FormDict" as src.form_schema.FormDict {
+class "FileSession" as src.controllers.file_session.FileSession {
+  cache : FileCache
+  can_redo : bool
+  can_undo : bool
+  dirty : bool
+  filtered : list[int]
+  page_index : int
+  path : NoneType, str | None
+  rows : list[RowData]
+  selected_row_idx : NoneType, int | None
+  selected_row_indices : set[int]
+  xml_repo : IXmlRepository
+  add_type() -> bool
+  apply_filter(query: str, case_sensitive: bool, filters: Mapping[str, str]) -> None
+  batch_apply_chipset(column_key: str, parts: str) -> None
+  batch_apply_field(field_key: str, value: str) -> None
+  batch_apply_flag(flag_name: str, value: str) -> None
+  clamp() -> None
+  clear_all() -> None
+  clear_selection() -> None
+  delete_selected() -> bool
+  load_setup(path: str) -> None
+  mark_clean() -> None
+  mark_dirty() -> None
+  next_page() -> None
+  prev_page() -> None
+  randomize(indices: Iterable[int]) -> None
+  record_undo() -> None
+  redo() -> bool
+  refilter() -> None
+  reset_page() -> None
+  reset_transient() -> None
+  save() -> None
+  save_async() -> None
+  set_syncing(value: bool) -> None
+  total_pages() -> int
+  undo() -> bool
+}
+class "FilterMenu" as src.ui.filter_menu.FilterMenu {
+  menu : MenuBar
+  spec : FilterSpec
+  values : list[str]
+  clear() -> None
+  filter_value() -> str
+  rebuild() -> None
+}
+class "FilterSpec" as src.ui.filter_menu.FilterSpec {
+  empty_marker : str
+  key : str
+  label : str
+  options : list[str]
+}
+class "FormDict" as src.models.form_schema.FormDict {
   key : str
   label : str
   value_type : FieldType
 }
-class "FormDisplay" as src.form_display.FormDisplay {
+class "FormDisplay" as src.ui.form_display.FormDisplay {
   button_row : Row
   control : Container
   is_dirty : bool
+  on_file_create : Callable[[str, str], None] | None
   on_file_select : Callable[[str], None] | None
   on_saved : Callable[[], None] | None
   clear() -> None
@@ -256,28 +309,29 @@ class "FormDisplay" as src.form_display.FormDisplay {
   set_entity(entity: str) -> None
   set_files(files: dict[str, str]) -> None
 }
-class "FormField" as src.form_schema.FormField {
+class "FormField" as src.models.form_schema.FormField {
   key : str
   label : str
   options : tuple[str, ...]
   type : FieldType
 }
-class "FormGrid" as src.form_schema.FormGrid {
+class "FormGrid" as src.models.form_schema.FormGrid {
   columns : tuple[FormField, ...]
+  item_schema : str
   key : str
   label : str
 }
-class "FormGroup" as src.form_schema.FormGroup {
+class "FormGroup" as src.models.form_schema.FormGroup {
   key : str
   label : str
   schema : str
 }
-class "FormList" as src.form_schema.FormList {
+class "FormList" as src.models.form_schema.FormList {
   item_type : FieldType
   key : str
   label : str
 }
-class "FormSchema" as src.form_schema.FormSchema {
+class "FormSchema" as src.models.form_schema.FormSchema {
   dicts : tuple[FormDict, ...]
   fields : tuple[FormField, ...]
   grids : tuple[FormGrid, ...]
@@ -285,13 +339,30 @@ class "FormSchema" as src.form_schema.FormSchema {
   lists : tuple[FormList, ...]
   name_key : str | None
 }
-class "IBatchPanel" as src.protocols.IBatchPanel {
+class "FunPresenter" as src.ui.fun_presenter.FunPresenter {
+  check_easter_egg(name: str) -> None
+  check_icon() -> ft.Icons
+  cycle_tip(tips: list[str]) -> None
+  fab_icon(shift_pressed: bool) -> ft.Icons
+  handle_post_save(rows: list[RowData]) -> None
+  icon_for(normal: ft.Icons) -> ft.Icons
+  is_cat() -> bool
+  lucky_phrase() -> str
+  on_field_change(e: object) -> None
+  show_achievement_fireworks(threshold: int, name: str) -> None
+  show_meme_dialog() -> None
+  show_meow_popup() -> None
+  show_stats_dialog() -> None
+  show_terminal_save(row_count: int) -> None
+  update_funny_visibility(buttons: list[ft.Control]) -> None
+}
+class "IBatchPanel" as src.core.protocols.IBatchPanel {
   build() -> object
   get_values() -> dict[str, object]
   hide() -> None
   show(header_text: str, usage_options: list[str], value_options: list[str], flag_names: list[str]) -> None
 }
-class "ICache" as src.protocols.ICache {
+class "ICache" as src.core.protocols.ICache {
   clear_all() -> None
   get_rows(path: str) -> list[RowData] | None
   get_tree(path: str) -> ET.ElementTree | None
@@ -299,14 +370,17 @@ class "ICache" as src.protocols.ICache {
   set_rows(path: str, rows: list[RowData]) -> None
   set_tree(path: str, tree: ET.ElementTree) -> None
 }
-class "IChipSet" as src.protocols.IChipSet {
+class "IChipSet" as src.core.protocols.IChipSet {
   add(value: str) -> None
   build_controls() -> object
   get_values() -> list[str]
   refresh() -> None
   remove(value: str) -> None
 }
-class "IConfigService" as src.protocols.IConfigService {
+class "ICommand" as src.core.protocols.ICommand {
+  execute() -> None
+}
+class "IConfigService" as src.core.protocols.IConfigService {
   add_file_to_ce(tree: ET.ElementTree, filename: str) -> bool
   create_type_file(ce_path: str, filename: str) -> str | None
   delete_type_file(ce_path: str, filename: str) -> bool
@@ -316,39 +390,39 @@ class "IConfigService" as src.protocols.IConfigService {
   load_files(ce_path: str) -> list[str]
   remove_file_from_ce(tree: ET.ElementTree, filename: str) -> bool
 }
-class "IDetailPanel" as src.protocols.IDetailPanel {
+class "IDetailPanel" as src.core.protocols.IDetailPanel {
   build() -> object
   hide() -> None
   refresh() -> None
   show(row: RowData, usage_options: list[str], value_options: list[str]) -> None
 }
-class "IDirtyState" as src.protocols.IDirtyState {
+class "IDirtyState" as src.core.protocols.IDirtyState {
   is_dirty : bool
   mark_clean() -> None
   mark_dirty() -> None
   reset() -> None
 }
-class "IEconomyEditor" as src.protocols.IEconomyEditor {
+class "IEconomyEditor" as src.core.protocols.IEconomyEditor {
   load_project(project: object) -> None
   unload() -> None
 }
-class "IEconomyService" as src.protocols.IEconomyService {
+class "IEconomyService" as src.core.protocols.IEconomyService {
   find_config(economy_dir: str) -> str | None
   get_all_editable_files(economy_dir: str) -> dict[str, str]
   get_known_files(directory: str) -> dict[str, str]
   get_type_files(economy_dir: str) -> dict[str, str]
   get_types_dir(economy_dir: str) -> str
 }
-class "IPagination" as src.protocols.IPagination {
+class "IPagination" as src.core.protocols.IPagination {
   page_index : int
   page_size : int
   total_pages(total_items: int) -> int
   visible_range(total_items: int) -> tuple[int, int]
 }
-class "IProfileService" as src.protocols.IProfileService {
+class "IProfileService" as src.core.protocols.IProfileService {
   scan_profiles(profiles_dir: str) -> dict[str, dict[str, str]]
 }
-class "IProjectService" as src.protocols.IProjectService {
+class "IProjectService" as src.core.protocols.IProjectService {
   add_project(project: object) -> None
   get_last_project() -> object | None
   get_project(name: str) -> object | None
@@ -356,7 +430,7 @@ class "IProjectService" as src.protocols.IProjectService {
   mark_opened(project: object) -> None
   remove_project(name: str) -> None
 }
-class "IRemoteConnection" as src.protocols.IRemoteConnection {
+class "IRemoteConnection" as src.core.protocols.IRemoteConnection {
   connected : bool
   connect() -> None
   disconnect() -> None
@@ -364,24 +438,24 @@ class "IRemoteConnection" as src.protocols.IRemoteConnection {
   list_files(path: str) -> list[str]
   upload_file(local_path: str, remote_path: str) -> None
 }
-class "ISearch" as src.protocols.ISearch {
+class "ISearch" as src.core.protocols.ISearch {
   case_sensitive : bool
   query : str
   filter_rows(rows: list[RowData]) -> list[int]
 }
-class "ISettingsService" as src.protocols.ISettingsService {
+class "ISettingsService" as src.core.protocols.ISettingsService {
   load_settings() -> dict[str, object]
   save_setting(key: str, value: object) -> None
 }
-class "ITableController" as src.protocols.ITableController {
+class "ITableController" as src.core.protocols.ITableController {
   clear() -> None
   render(rows: list[RowData], filtered: list[int], page_idx: int) -> None
   sync_back(rows: list[RowData], filtered: list[int], page_idx: int) -> None
 }
-class "IUpdateService" as src.protocols.IUpdateService {
+class "IUpdateService" as src.core.protocols.IUpdateService {
   check_for_updates(current_version: str, show_up_to_date: bool) -> None
 }
-class "IXmlRepository" as src.protocols.IXmlRepository {
+class "IXmlRepository" as src.core.protocols.IXmlRepository {
   invalidate_cache(path: str) -> None
   parse_file(path: str) -> list[RowData]
   parse_file_async(path: str) -> list[RowData]
@@ -395,9 +469,9 @@ class "JsonSettingsRepository" as src.repository.settings_repository.JsonSetting
   save(path: str, rows: list[RowData]) -> None
   save_doc(path: str, doc: object) -> None
 }
-class "<color:red>NetworkError</color>" as src.exceptions.NetworkError {
+class "<color:red>NetworkError</color>" as src.core.exceptions.NetworkError {
 }
-class "NotYetAvailableMod" as src.mod_handlers.NotYetAvailableMod {
+class "NotYetAvailableMod" as src.models.mod_handlers.NotYetAvailableMod {
   message : str
   name : str
   get_renderer(filename: str) -> str
@@ -412,9 +486,9 @@ class "PaginationController" as src.controllers.pagination_controller.Pagination
   total_pages(total_items: int) -> int
   visible_range(total_items: int) -> tuple[int, int]
 }
-class "<color:red>ParseError</color>" as src.exceptions.ParseError {
+class "<color:red>ParseError</color>" as src.core.exceptions.ParseError {
 }
-class "PermissionsFramework" as src.mod_handlers.PermissionsFramework {
+class "PermissionsFramework" as src.models.mod_handlers.PermissionsFramework {
   name : str
 }
 class "PreloadEstimate" as src.services.profile_preload_service.PreloadEstimate {
@@ -449,9 +523,12 @@ class "ProjectService" as src.services.project_service.ProjectService {
   remove_project(name: str) -> None
   save_projects(projects: list[Project]) -> None
 }
-class "<color:red>RemoteAuthError</color>" as src.exceptions.RemoteAuthError {
+class "RandomizeCommand" as src.controllers.commands.RandomizeCommand {
+  execute() -> None
 }
-class "<color:red>RemoteConnectionError</color>" as src.exceptions.RemoteConnectionError {
+class "<color:red>RemoteAuthError</color>" as src.core.exceptions.RemoteAuthError {
+}
+class "<color:red>RemoteConnectionError</color>" as src.core.exceptions.RemoteConnectionError {
 }
 class "<color:red>RemoteNotConnectedError</color>" as src.connection.ftp_connection.RemoteNotConnectedError {
 }
@@ -461,7 +538,7 @@ class "RemoteSyncService" as src.services.remote_sync_service.RemoteSyncService 
   sync_to_local(config: ConnectionConfig, remote_dir: str, local_dir: str, connection: IRemoteConnection | None, remote_profiles_dir: str, local_profiles_dir: str, exclude_profiles: set[str] | None, on_progress: ProgressCallback | None, on_status: Callable[[str], None] | None) -> None
   upload_to_remote(config: ConnectionConfig, local_dir: str, remote_dir: str, connection: IRemoteConnection | None, local_profiles_dir: str, remote_profiles_dir: str, exclude_profiles: set[str] | None) -> None
 }
-class "<color:red>RemoteTimeoutError</color>" as src.exceptions.RemoteTimeoutError {
+class "<color:red>RemoteTimeoutError</color>" as src.core.exceptions.RemoteTimeoutError {
 }
 class "RowData" as src.models.row_data.RowData {
   elem : ET.Element | None
@@ -481,19 +558,24 @@ class "SSHConnection" as src.connection.ssh_connection.SSHConnection {
   list_files(path: str) -> list[str]
   upload_file(local_path: str, remote_path: str) -> None
 }
+class "SaveCommand" as src.controllers.commands.SaveCommand {
+  execute() -> None
+  execute_async() -> None
+}
 class "SearchController" as src.controllers.search_controller.SearchController {
   case_sensitive : bool
+  filters : dict[str, str]
   query : str
   filter_rows(rows: list[RowData]) -> list[int]
   reset() -> None
-  set_filters(category: str, usage: str, value: str) -> None
+  set_filters(filters: Mapping[str, str]) -> None
   set_search(value: str, case_sensitive: bool) -> None
 }
 class "SettingsService" as src.services.settings_service.SettingsService {
   load_settings() -> dict[str, object]
   save_setting(key: str, value: object) -> None
 }
-class "SettingsTableDisplay" as src.settings_table_display.SettingsTableDisplay {
+class "SettingsTableDisplay" as src.ui.settings_table_display.SettingsTableDisplay {
   button_row : Row
   control : Container
   is_dirty : bool
@@ -508,7 +590,7 @@ class "SettingsTableDisplay" as src.settings_table_display.SettingsTableDisplay 
   save_file() -> None
   set_entity(entity: str) -> None
 }
-class "SpawnerBubaku" as src.mod_handlers.SpawnerBubaku {
+class "SpawnerBubaku" as src.models.mod_handlers.SpawnerBubaku {
   name : str
 }
 class "TableController" as src.controllers.table_controller.TableController {
@@ -524,10 +606,10 @@ class "TableController" as src.controllers.table_controller.TableController {
   set_callbacks(on_row_click: Callable[[int], None] | None, on_field_change: Callable[[object], None] | None, on_row_hover: Callable[[object, int], None] | None, on_row_tap_down: Callable[[object, int], None] | None) -> None
   sync_back(rows: list[RowData], filtered: list[int], page_idx: int) -> None
 }
-class "TraderX" as src.mod_handlers.TraderX {
+class "TraderX" as src.models.mod_handlers.TraderX {
   name : str
 }
-class "UnavailableDisplay" as src.unavailable_display.UnavailableDisplay {
+class "UnavailableDisplay" as src.ui.unavailable_display.UnavailableDisplay {
   button_row : Row
   control : Container
   is_dirty : bool
@@ -565,7 +647,7 @@ class "XmlSettingsRepository" as src.repository.settings_repository.XmlSettingsR
   parse_file(path: str, schema: tuple[FieldDef, ...] | None) -> tuple[list[FieldDef], list[RowData]]
   save(path: str, rows: list[RowData]) -> None
 }
-class "<color:red>YeteeError</color>" as src.exceptions.YeteeError {
+class "<color:red>YeteeError</color>" as src.core.exceptions.YeteeError {
 }
 class "_EntityConfig" as src.ui.economy_editor._EntityConfig {
   display
@@ -573,17 +655,17 @@ class "_EntityConfig" as src.ui.economy_editor._EntityConfig {
   show_add_tab : bool
   show_tabs : bool
 }
-src.exceptions.AccessError --|> src.exceptions.YeteeError
-src.exceptions.NetworkError --|> src.exceptions.YeteeError
-src.exceptions.ParseError --|> src.exceptions.YeteeError
-src.exceptions.RemoteAuthError --|> src.exceptions.NetworkError
-src.exceptions.RemoteConnectionError --|> src.exceptions.NetworkError
-src.exceptions.RemoteTimeoutError --|> src.exceptions.NetworkError
-src.mod_handlers.AS_Mods --|> src.mod_handlers.NotYetAvailableMod
-src.mod_handlers.CommunityOnlineTools --|> src.mod_handlers.NotYetAvailableMod
-src.mod_handlers.PermissionsFramework --|> src.mod_handlers.NotYetAvailableMod
-src.mod_handlers.SpawnerBubaku --|> src.mod_handlers.NotYetAvailableMod
-src.mod_handlers.TraderX --|> src.mod_handlers.NotYetAvailableMod
-src.custom_entities.EntityConfig --> src.custom_entities.FileConfig : default
+src.core.exceptions.AccessError --|> src.core.exceptions.YeteeError
+src.core.exceptions.NetworkError --|> src.core.exceptions.YeteeError
+src.core.exceptions.ParseError --|> src.core.exceptions.YeteeError
+src.core.exceptions.RemoteAuthError --|> src.core.exceptions.NetworkError
+src.core.exceptions.RemoteConnectionError --|> src.core.exceptions.NetworkError
+src.core.exceptions.RemoteTimeoutError --|> src.core.exceptions.NetworkError
+src.models.mod_handlers.AS_Mods --|> src.models.mod_handlers.NotYetAvailableMod
+src.models.mod_handlers.CommunityOnlineTools --|> src.models.mod_handlers.NotYetAvailableMod
+src.models.mod_handlers.PermissionsFramework --|> src.models.mod_handlers.NotYetAvailableMod
+src.models.mod_handlers.SpawnerBubaku --|> src.models.mod_handlers.NotYetAvailableMod
+src.models.mod_handlers.TraderX --|> src.models.mod_handlers.NotYetAvailableMod
+src.models.custom_entities.EntityConfig --> src.models.custom_entities.FileConfig : default
 src.models.field_def.FieldDef --> src.models.field_def.FieldType : type
 @enduml
