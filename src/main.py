@@ -30,7 +30,7 @@ from ui.economy_editor import EconomyEditor
 
 logger = logging.getLogger(__name__)
 
-VERSION = "0.6.1"
+VERSION = "0.6.2"
 
 
 class App:

@@ -1,6 +1,6 @@
 [project]
 name = "types-editor"
-version = "0.6.1"
+version = "0.6.2"
 description = "DayZ economy type files editor"
 readme = "README.md"
 requires-python = ">=3.10"
