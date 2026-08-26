@@ -2,11 +2,15 @@
 
 The diagram shows who builds whom (assembling) and the data flow from the entry
 point down to the stores. All high-level entities are wired in the composition
-root `src/core/di.py` (`create_app_services`).
+root `src/core/di.py` (`create_app_services`). The `App` class is a thin facade:
+it wires `AppShell` (view), `ProjectFlow` / `RemoteFlow` (presentation flows)
+and `SettingsManager` (flet-free settings state).
 
 Диаграмма показывает, кто кого создаёт (assembling) и поток данных от точки
 входа до хранилищ. Все высокоуровневые сущности собираются в composition root
-`src/core/di.py` (`create_app_services`).
+`src/core/di.py` (`create_app_services`). Класс `App` — тонкий фасад: он
+связывает `AppShell` (представление), `ProjectFlow` / `RemoteFlow`
+(презентационные потоки) и `SettingsManager` (состояние настроек без flet).
 
 > The remote-sync layer (`ConnectionManager`, `RemoteSyncService`, SSH/FTP) is
 > part of the `issue/25` branch (SSH/FTP connections).
@@ -17,11 +21,15 @@ root `src/core/di.py` (`create_app_services`).
 ```mermaid
 flowchart TB
     subgraph entry["Entry point"]
-        main["App (src/main.py)"]
+        main["App facade (src/main.py)"]
         di["di.create_app_services (composition root)"]
     end
 
     subgraph ui["UI"]
+        shell["AppShell (src/ui/app_shell.py)"]
+        pflow["ProjectFlow (src/ui/project_flow.py)"]
+        rflow["RemoteFlow (src/ui/remote_flow.py)"]
+        dlg["ui/dialogs.py (show_error/show_message)"]
         ee["EconomyEditor (src/ui/economy_editor.py)"]
         fd["FileDisplay (src/ui/file_display.py)"]
         evd["EventDisplay (src/ui/event_display.py)"]
@@ -36,6 +44,7 @@ flowchart TB
     end
 
     subgraph controllers["Controllers"]
+        sm["SettingsManager (src/controllers/settings_manager.py, flet-free)"]
         fs["FileSession (src/controllers/file_session.py, flet-free)"]
         tc["TableController"]
         sc["SearchController"]
@@ -88,6 +97,21 @@ flowchart TB
     end
 
     main -->|"creates"| di
+    main -->|"creates + wires"| shell
+    main -->|"creates"| pflow
+    main -->|"creates"| rflow
+    main -->|"creates"| sm
+    shell -->|"widgets + view ops"| main
+    pflow -->|"project dialogs, selectors, preload"| ee
+    pflow -->|"dropdowns/visibility/cat icons"| shell
+    pflow -->|"projects CRUD"| prj
+    pflow -->|"scan_profiles"| prof
+    rflow -->|"open remote / refresh / upload-on-save"| rss
+    rflow -->|"connections add/test/delete"| cm
+    rflow -->|"reload/open project"| pflow
+    rflow --> dlg
+    sm -->|"load/save settings"| stg
+    sm -->|"fun flags"| ent
     di -->|"AppServices"| cfg
     di -->|"AppServices"| stg
     di -->|"AppServices"| upd
@@ -113,8 +137,8 @@ flowchart TB
     ee -->|"unavailable entities"| uav
     ee -->|"config_service"| cfg
 
-    main -->|"preload dialog + progress"| pload
-    main -->|"preload_cached"| std
+    main -->|"preload dialog + progress (via ProjectFlow)"| pload
+    pflow -->|"preload_cached"| std
     pload -->|"estimate/should_confirm"| std
 
     fd -->|"xml_repo (IXmlRepository)"| xmlr
