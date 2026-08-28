@@ -2,11 +2,13 @@
 
 Local saving goes through `FileSession`/`SaveCommand`, the repository and
 `FileCache`; after a successful save the display fires its `on_saved` callback,
-so the `App` can trigger a remote upload (remote-sync layer — `issue/25`).
+which the `App` facade wires to `RemoteFlow.on_local_saved` so remote projects
+trigger an upload (remote-sync layer — `issue/25`).
 
 Локальное сохранение идёт через `FileSession`/`SaveCommand`, репозиторий и
 `FileCache`; после успешного сохранения `FileDisplay` (или `EventDisplay`)
-дёргает callback `on_saved`, чтобы `App` мог запустить выгрузку в remote
+дёргает callback `on_saved`, который фасад `App` привязывает к
+`RemoteFlow.on_local_saved`, чтобы для remote-проектов запустить выгрузку
 (слой remote-синхронизации — `issue/25`).
 
 ```mermaid
@@ -18,7 +20,8 @@ sequenceDiagram
     participant D as DirtyStateManager
     participant R as XmlRepository
     participant C as FileCache
-    participant A as App (main.py)
+    participant A as App facade (main.py)
+    participant RF as RemoteFlow (ui/remote_flow.py)
     participant RSS as RemoteSyncService
     participant CM as ConnectionManager
     participant F as IRemoteConnection (factory)
@@ -31,9 +34,10 @@ sequenceDiagram
     R-->>SC: ok
     SC-->>FS: ok
     FD->>FS: mark_clean()
-    FD->>A: on_saved()          (only wired for remote App)
+    FD->>A: on_saved()          (wired by App._wire_actions)
+    A->>RF: on_saved()
     alt remote project
-        A->>RSS: upload_to_remote(config, local_dir, remote_dir)
+        RF->>RSS: upload_to_remote(config, local_dir, remote_dir)
         RSS->>CM: create(config)
         CM->>F: create_connection(config, password)
         F-->>CM: IRemoteConnection

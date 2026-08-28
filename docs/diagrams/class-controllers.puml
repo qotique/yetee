@@ -47,6 +47,25 @@ class RowSnapshot {
   flags : dict[str,str]
 }
 
+' Flet-free settings state owned by the App facade (src/main.py)
+class SettingsManager {
+  + selected_theme / selected_language : str
+  + check_updates / show_unhandled_mod_editors : bool
+  + apply_startup(values)
+  + save(key, value) : async
+  + set_theme(value) / set_language(value) : bool (async)
+  + set_check_updates(value) / set_unhandled_editors(value) : async
+  + set_fun_flag(key, value) : async
+}
+interface SettingsStore
+interface EntertainmentFlags
+note right of SettingsStore
+  implemented by SettingsService
+end note
+note right of EntertainmentFlags
+  implemented by EntertainmentService
+end note
+
 class FileSession {
   + path : str | None
   + rows : list[RowData]
@@ -86,6 +105,8 @@ FileSession ..> RandomizeCommand
 FileSession ..> SaveCommand
 EventDisplay ..> TableController
 EventDisplay ..> UndoManager
+SettingsManager ..> SettingsStore
+SettingsManager ..> EntertainmentFlags
 
 ' FileDisplay и EventDisplay используют несколько контроллеров
 TableController --> RowSnapshot : "handles / обрабатывает"

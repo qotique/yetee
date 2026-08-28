@@ -605,14 +605,10 @@ def test_app_new_project_dialog_has_no_custom_entities_button(mock_page):
         assert "No custom entities yet." not in texts
 
 
-def test_preload_profile_files_few_files_runs_directly(mock_page, tmp_path):
-    from main import App
+def test_preload_delegates_to_project_flow(mock_page):
+    from unittest.mock import MagicMock
 
-    profiles = tmp_path / "profiles"
-    for i in range(3):
-        d = profiles / f"Mod{i}"
-        d.mkdir(parents=True, exist_ok=True)
-        (d / f"{i}.json").write_text("{}")
+    from main import App
 
     economy_editor = MagicMock()
     economy_editor.settings_display = MagicMock()
@@ -625,304 +621,16 @@ def test_preload_profile_files_few_files_runs_directly(mock_page, tmp_path):
         MagicMock(),
         economy_editor,
     )
-    app._profile_service = MagicMock()
-    app._profile_service.scan_profiles.return_value = {
-        f"Mod{i}": {f"{i}.json": str(profiles / f"Mod{i}" / f"{i}.json")}
-        for i in range(3)
-    }
     project = MagicMock()
-    project.profiles_dir = str(profiles)
+    calls: dict[str, object] = {}
 
+    def fake_preload(p: object, *, confirm: bool) -> None:
+        calls["project"] = p
+        calls["confirm"] = confirm
+
+    app.project_flow.preload_profile_files = fake_preload
     app._preload_profile_files(project, confirm=True)
-
-    args = mock_page.run_task.call_args.args
-    assert args and args[0] is economy_editor.settings_display.preload_cached
-    mock_page.show_dialog.assert_not_called()
-
-
-def test_preload_profile_files_skips_not_yet_available(mock_page, tmp_path):
-    from main import App
-
-    profiles = tmp_path / "profiles"
-    (profiles / "TraderX").mkdir(parents=True)
-    (profiles / "TraderX" / "traderconfig.json").write_text("{}")
-    (profiles / "CustomMod").mkdir()
-    (profiles / "CustomMod" / "cfg.json").write_text("{}")
-
-    economy_editor = MagicMock()
-    economy_editor.settings_display = MagicMock()
-    economy_editor.is_editable_entity.side_effect = lambda entity: entity == "CustomMod"
-    app = App(
-        mock_page,
-        MagicMock(),
-        MagicMock(),
-        MagicMock(),
-        MagicMock(),
-        MagicMock(),
-        economy_editor,
-    )
-    app._profile_service = MagicMock()
-    app._profile_service.scan_profiles.return_value = {
-        "TraderX": {
-            "traderconfig.json": str(profiles / "TraderX" / "traderconfig.json")
-        },
-        "CustomMod": {"cfg.json": str(profiles / "CustomMod" / "cfg.json")},
-    }
-    project = MagicMock()
-    project.profiles_dir = str(profiles)
-
-    app._preload_profile_files(project, confirm=True)
-
-    args = mock_page.run_task.call_args.args
-    assert args and args[0] is economy_editor.settings_display.preload_cached
-    files = args[1]
-    assert files == [str(profiles / "CustomMod" / "cfg.json")]
-
-
-def test_preload_profile_files_many_files_shows_dialog(mock_page, tmp_path):
-    from main import App
-    from services.profile_preload_service import PROFILE_PRELOAD_DIALOG_MIN_FILES
-
-    profiles = tmp_path / "profiles"
-    n = PROFILE_PRELOAD_DIALOG_MIN_FILES + 1
-    files_map = {}
-    for i in range(n):
-        d = profiles / f"Mod{i}"
-        d.mkdir(parents=True, exist_ok=True)
-        f = d / f"{i}.json"
-        f.write_text("{}")
-        files_map[f"Mod{i}"] = {f"{i}.json": str(f)}
-
-    economy_editor = MagicMock()
-    economy_editor.settings_display = MagicMock()
-    app = App(
-        mock_page,
-        MagicMock(),
-        MagicMock(),
-        MagicMock(),
-        MagicMock(),
-        MagicMock(),
-        economy_editor,
-    )
-    app._profile_service = MagicMock()
-    app._profile_service.scan_profiles.return_value = files_map
-    project = MagicMock()
-    project.profiles_dir = str(profiles)
-
-    app._preload_profile_files(project, confirm=True)
-
-    economy_editor.settings_display.preload_cached.assert_not_called()
-    mock_page.show_dialog.assert_called_once()
-    dialog = mock_page.show_dialog.call_args.args[0]
-    assert dialog.title.value == "Loading profiles"
-    content = dialog.content
-    import flet as ft
-
-    assert any(isinstance(c, ft.Row) for c in content.controls)
-
-
-def test_preload_profile_files_confirm_false_skips_dialog(mock_page, tmp_path):
-    from main import App
-    from services.profile_preload_service import PROFILE_PRELOAD_DIALOG_MIN_FILES
-
-    profiles = tmp_path / "profiles"
-    n = PROFILE_PRELOAD_DIALOG_MIN_FILES + 1
-    files_map = {}
-    for i in range(n):
-        d = profiles / f"Mod{i}"
-        d.mkdir(parents=True, exist_ok=True)
-        f = d / f"{i}.json"
-        f.write_text("{}")
-        files_map[f"Mod{i}"] = {f"{i}.json": str(f)}
-
-    economy_editor = MagicMock()
-    economy_editor.settings_display = MagicMock()
-    app = App(
-        mock_page,
-        MagicMock(),
-        MagicMock(),
-        MagicMock(),
-        MagicMock(),
-        MagicMock(),
-        economy_editor,
-    )
-    app._profile_service = MagicMock()
-    app._profile_service.scan_profiles.return_value = files_map
-    project = MagicMock()
-    project.profiles_dir = str(profiles)
-
-    app._preload_profile_files(project, confirm=False)
-
-    args = mock_page.run_task.call_args.args
-    assert args and args[0] is economy_editor.settings_display.preload_cached
-    mock_page.show_dialog.assert_not_called()
-
-
-def test_refresh_local_project_reloads_and_preloads(mock_page, tmp_path):
-    import asyncio
-    from main import App
-
-    profiles = tmp_path / "profiles"
-    (profiles / "ModA").mkdir(parents=True)
-    (profiles / "ModA" / "a.json").write_text("{}")
-
-    economy_editor = MagicMock()
-    economy_editor.settings_display = MagicMock()
-    app = App(
-        mock_page,
-        MagicMock(),
-        MagicMock(),
-        MagicMock(),
-        MagicMock(),
-        MagicMock(),
-        economy_editor,
-    )
-    app._profile_service = MagicMock()
-    app._profile_service.scan_profiles.return_value = {
-        "ModA": {"a.json": str(profiles / "ModA" / "a.json")}
-    }
-    project = MagicMock()
-    project.profiles_dir = str(profiles)
-    project.is_remote = False
-
-    asyncio.run(app._refresh_local_project(project))
-
-    economy_editor.load_project.assert_called_once_with(project)
-    args = mock_page.run_task.call_args.args
-    assert args and args[0] is economy_editor.settings_display.preload_cached
-
-
-def test_refresh_remote_project_syncs_then_reloads(mock_page, tmp_path):
-    import asyncio
-    from main import App
-    from models.connection import ConnectionConfig
-
-    remote_sync = MagicMock()
-    remote_sync.sync_to_local = AsyncMock()
-    economy_editor = MagicMock()
-    economy_editor.settings_display = MagicMock()
-    app = App(
-        mock_page,
-        MagicMock(),
-        MagicMock(),
-        MagicMock(),
-        MagicMock(),
-        MagicMock(),
-        economy_editor,
-        connection_manager=MagicMock(),
-        remote_sync_service=remote_sync,
-    )
-    app._profile_service = MagicMock()
-    app._profile_service.scan_profiles.return_value = {}
-    cfg = ConnectionConfig(
-        id="c1",
-        protocol="ssh",
-        host="example.com",
-        port=22,
-        username="user",
-        remote_economy_dir="mpmissions/chernarusplus",
-    )
-    project = MagicMock()
-    project.economy_dir = "/staging"
-    project.remote_dir = "mpmissions/chernarusplus"
-    project.profiles_dir = ""
-    project.is_remote = True
-    project.connection_id = "c1"
-
-    asyncio.run(app._refresh_remote_project(cfg, project))
-
-    remote_sync.sync_to_local.assert_awaited_once()
-    assert remote_sync.sync_to_local.call_args.args[1] == "mpmissions/chernarusplus"
-    assert remote_sync.sync_to_local.call_args.args[2] == "/staging"
-    economy_editor.load_project.assert_called_once_with(project)
-    mock_page.pop_dialog.assert_called()
-
-
-def test_open_remote_project_shows_sync_dialog(mock_page):
-    from main import App
-    from models.connection import ConnectionConfig
-
-    remote_sync = MagicMock()
-    remote_sync.sync_to_local = AsyncMock()
-    economy_editor = MagicMock()
-    economy_editor.settings_display = MagicMock()
-    app = App(
-        mock_page,
-        MagicMock(),
-        MagicMock(),
-        MagicMock(),
-        MagicMock(),
-        MagicMock(),
-        economy_editor,
-        connection_manager=MagicMock(),
-        remote_sync_service=remote_sync,
-    )
-    cfg = ConnectionConfig(
-        id="c1",
-        protocol="ssh",
-        host="example.com",
-        port=22,
-        username="user",
-        remote_economy_dir="mpmissions/chernarusplus",
-    )
-
-    import asyncio
-    import flet as ft
-
-    asyncio.run(app._open_remote_project(cfg))
-
-    mock_page.show_dialog.assert_called_once()
-    dialog = mock_page.show_dialog.call_args.args[0]
-    assert dialog.title.value == "Opening remote project"
-    content = dialog.content
-    rows = [c for c in content.controls if isinstance(c, ft.Row)]
-    assert any(
-        any(isinstance(sub, ft.ProgressBar) for sub in row.controls) for row in rows
-    )
-    remote_sync.sync_to_local.assert_awaited_once()
-    on_progress = remote_sync.sync_to_local.call_args.kwargs.get("on_progress")
-    assert on_progress is not None
-    mock_page.pop_dialog.assert_called()
-
-
-def test_open_remote_project_dialog_closed_on_error(mock_page):
-    from main import App
-    from models.connection import ConnectionConfig
-
-    remote_sync = MagicMock()
-    remote_sync.sync_to_local = AsyncMock(side_effect=ConnectionError("boom"))
-    economy_editor = MagicMock()
-    economy_editor.settings_display = MagicMock()
-    app = App(
-        mock_page,
-        MagicMock(),
-        MagicMock(),
-        MagicMock(),
-        MagicMock(),
-        MagicMock(),
-        economy_editor,
-        connection_manager=MagicMock(),
-        remote_sync_service=remote_sync,
-    )
-    cfg = ConnectionConfig(
-        id="c2",
-        protocol="ssh",
-        host="example.com",
-        port=22,
-        username="user",
-        remote_economy_dir="mpmissions/chernarusplus",
-    )
-
-    import asyncio
-
-    asyncio.run(app._open_remote_project(cfg))
-
-    sync_dialog = mock_page.show_dialog.call_args_list[0].args[0]
-    assert sync_dialog.title.value == "Opening remote project"
-    assert mock_page.pop_dialog.called
-    error_dialog = mock_page.show_dialog.call_args_list[1].args[0]
-    assert error_dialog.title.value == "Error"
-    assert "boom" in error_dialog.content.value
+    assert calls == {"project": project, "confirm": True}
 
 
 def test_unhandled_editors_switch_saves_setting_and_routes(mock_page):
@@ -930,18 +638,18 @@ def test_unhandled_editors_switch_saves_setting_and_routes(mock_page):
 
     from main import App
 
+    settings_service = MagicMock()
     economy_editor = MagicMock()
     economy_editor.settings_display = MagicMock()
     app = App(
         mock_page,
         MagicMock(),
-        MagicMock(),
+        settings_service,
         MagicMock(),
         MagicMock(),
         MagicMock(),
         economy_editor,
     )
-    app._settings_service = MagicMock()
 
     async def run():
         await app._on_unhandled_editors_change(
@@ -955,7 +663,57 @@ def test_unhandled_editors_switch_saves_setting_and_routes(mock_page):
     asyncio.run(run())
 
     assert app.show_unhandled_mod_editors is True
+    assert app.settings_manager.show_unhandled_mod_editors is True
     economy_editor.set_show_unhandled_editors.assert_called_once_with(True)
-    app._settings_service.save_setting.assert_called_once_with(
+    settings_service.save_setting.assert_called_once_with(
         "show_unhandled_mod_editors", True
+    )
+
+
+def test_app_wires_editor_save_callbacks(mock_page):
+    from unittest.mock import MagicMock
+
+    from main import App
+
+    editor = MagicMock()
+    editor.settings_display = None
+    editor.form_display = None
+    app = App(
+        mock_page,
+        MagicMock(),
+        MagicMock(),
+        MagicMock(),
+        MagicMock(),
+        MagicMock(),
+        editor,
+    )
+    assert editor.file_display.on_saved == app.remote_flow.on_local_saved
+    assert editor.event_display.on_saved == app.remote_flow.on_local_saved
+
+
+def test_app_shell_widgets_bound(mock_page):
+    from unittest.mock import MagicMock
+
+    from main import App
+
+    editor = MagicMock()
+    editor.settings_display = None
+    editor.form_display = None
+    app = App(
+        mock_page,
+        MagicMock(),
+        MagicMock(),
+        MagicMock(),
+        MagicMock(),
+        MagicMock(),
+        editor,
+    )
+    shell = app.shell
+    assert shell.save_btn.on_click == app._on_save
+    assert shell.project_dropdown.on_select == app.project_flow.on_project_switch
+    assert shell.entity_dropdown.on_select == app.project_flow.on_entity_switch
+    assert shell.refresh_btn.on_click == app.remote_flow.on_refresh_project
+    assert (
+        shell.start_open_project_btn.on_click
+        == app.project_flow.show_open_project_dialog
     )

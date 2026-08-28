@@ -6,15 +6,13 @@ class "AS_Mods" as src.models.mod_handlers.AS_Mods {
 class "<color:red>AccessError</color>" as src.core.exceptions.AccessError {
 }
 class "App" as src.main.App {
-  check_updates : bool
-  content_column : Column
   page : Page
-  selected_language : str
-  selected_theme : str
+  project_flow : ProjectFlow
+  remote_flow : RemoteFlow
+  settings_manager : SettingsManager
+  shell : AppShell
   show_unhandled_mod_editors : bool
-  start_container : Container
   build_main_view() -> ft.View
-  open_settings(e: object) -> None
   route_change(route: object) -> None
   view_pop(e: ft.ViewPopEvent) -> None
 }
@@ -29,6 +27,46 @@ class "AppServices" as src.core.di.AppServices {
   remote_sync_service : RemoteSyncService
   settings_service : SettingsService
   update_service : UpdateService
+}
+class "AppShell" as src.ui.app_shell.AppShell {
+  cat_mode_switch : Switch
+  check_updates_switch : Switch
+  connections_btn : IconButton
+  content_column : Column
+  content_stack : Stack
+  delete_project_btn : IconButton
+  entity_dropdown : Dropdown
+  fun_messages_switch : Switch
+  funny_enabled_switch : Switch
+  language_dropdown : Dropdown
+  meme_switch : Switch
+  new_project_btn : IconButton
+  page : Page
+  project_dropdown : Dropdown
+  refresh_btn : IconButton
+  save_btn : Button
+  settings_btn : IconButton
+  settings_overlay : Container
+  start_container : Container
+  start_ftp_btn : Button
+  start_new_project_btn : Button
+  start_open_project_btn : Button
+  start_select_dir_btn : Button
+  start_ssh_btn : Button
+  terminal_mode_switch : Switch
+  theme_dropdown : Dropdown
+  title_bar : Container
+  unhandled_editors_switch : Switch
+  attach_editor(editor_control: ft.Control) -> None
+  build_main_view() -> ft.View
+  close_settings(e: object) -> None
+  ensure_main_view() -> None
+  open_settings(e: object) -> None
+  refresh_entity_options(entities: list[str], current: str | None) -> None
+  refresh_project_options(names: list[str], selected: str | None) -> None
+  set_project_ui_open(opened: bool) -> None
+  sync_settings_controls(manager: SettingsManager) -> None
+  update_cat_icons() -> None
 }
 class "BatchPanel" as src.ui.batch_panel.BatchPanel {
   build() -> ft.Control
@@ -132,6 +170,14 @@ class "EconomyService" as src.services.economy_service.EconomyService {
   get_known_files(directory: str) -> dict[str, str]
   get_type_files(economy_dir: str) -> dict[str, str]
   get_types_dir(economy_dir: str) -> str
+}
+class "EntertainmentFlags" as src.controllers.settings_manager.EntertainmentFlags {
+  achievements_str : str
+  cat_mode : bool
+  fun_save_messages : bool
+  funny_enabled : bool
+  show_meme_on_save : bool
+  terminal_mode : bool
 }
 class "EntertainmentService" as src.services.entertainment_service.EntertainmentService {
   achievements_str : str
@@ -514,6 +560,22 @@ class "Project" as src.models.project.Project {
   from_dict(d: dict[str, object]) -> Project
   to_dict() -> dict[str, object]
 }
+class "ProjectFlow" as src.ui.project_flow.ProjectFlow {
+  page : Page
+  create_project(name: str, economy_dir: str, profiles_dir: str) -> None
+  delete_project_flow(e: object) -> None
+  on_entity_switch(e: object) -> None
+  on_project_switch(e: object) -> None
+  open_project(project: Project) -> None
+  preload_profile_files(project: Project) -> None
+  refresh_entity_selectors() -> None
+  refresh_project_dropdown() -> None
+  reload_project(project: Project) -> None
+  restore_last_project() -> None
+  select_economy_dir(e: object) -> None
+  show_new_project_dialog(e: object, name: str, economy_dir: str, profiles_dir: str, remote_opener: Callable[[str], None] | None) -> None
+  show_open_project_dialog(e: object) -> None
+}
 class "ProjectService" as src.services.project_service.ProjectService {
   add_project(project: Project) -> None
   get_last_project() -> Project | None
@@ -529,6 +591,18 @@ class "RandomizeCommand" as src.controllers.commands.RandomizeCommand {
 class "<color:red>RemoteAuthError</color>" as src.core.exceptions.RemoteAuthError {
 }
 class "<color:red>RemoteConnectionError</color>" as src.core.exceptions.RemoteConnectionError {
+}
+class "RemoteFlow" as src.ui.remote_flow.RemoteFlow {
+  page : Page
+  delete_connection(cfg: ConnectionConfig) -> None
+  on_local_saved() -> None
+  on_refresh_project(e: object) -> None
+  open_remote_project(cfg: ConnectionConfig) -> None
+  refresh_local_project(project: Project) -> None
+  refresh_remote_project(cfg: ConnectionConfig, project: Project) -> None
+  show_add_connection_dialog(e: object) -> None
+  show_connections_dialog(e: object, protocol: str | None) -> None
+  test_connection(cfg: ConnectionConfig) -> None
 }
 class "<color:red>RemoteNotConnectedError</color>" as src.connection.ftp_connection.RemoteNotConnectedError {
 }
@@ -571,7 +645,24 @@ class "SearchController" as src.controllers.search_controller.SearchController {
   set_filters(filters: Mapping[str, str]) -> None
   set_search(value: str, case_sensitive: bool) -> None
 }
+class "SettingsManager" as src.controllers.settings_manager.SettingsManager {
+  check_updates : bool
+  selected_language : object, str
+  selected_theme : object, str
+  show_unhandled_mod_editors : bool
+  apply_startup(settings: Mapping[str, object]) -> None
+  save(key: str, value: object) -> None
+  set_check_updates(value: bool) -> None
+  set_fun_flag(key: str, value: bool) -> None
+  set_language(value: object) -> bool
+  set_theme(value: object) -> bool
+  set_unhandled_editors(value: bool) -> None
+}
 class "SettingsService" as src.services.settings_service.SettingsService {
+  load_settings() -> dict[str, object]
+  save_setting(key: str, value: object) -> None
+}
+class "SettingsStore" as src.controllers.settings_manager.SettingsStore {
   load_settings() -> dict[str, object]
   save_setting(key: str, value: object) -> None
 }

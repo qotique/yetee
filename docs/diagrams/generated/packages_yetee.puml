@@ -20,6 +20,8 @@ package "src.controllers.pagination_controller" as src.controllers.pagination_co
 }
 package "src.controllers.search_controller" as src.controllers.search_controller {
 }
+package "src.controllers.settings_manager" as src.controllers.settings_manager {
+}
 package "src.controllers.table_controller" as src.controllers.table_controller {
 }
 package "src.core" as src.core {
@@ -92,11 +94,15 @@ package "src.services.update_service" as src.services.update_service {
 }
 package "src.ui" as src.ui {
 }
+package "src.ui.app_shell" as src.ui.app_shell {
+}
 package "src.ui.batch_panel" as src.ui.batch_panel {
 }
 package "src.ui.chip_set" as src.ui.chip_set {
 }
 package "src.ui.detail_panel" as src.ui.detail_panel {
+}
+package "src.ui.dialogs" as src.ui.dialogs {
 }
 package "src.ui.economy_editor" as src.ui.economy_editor {
 }
@@ -110,26 +116,31 @@ package "src.ui.form_display" as src.ui.form_display {
 }
 package "src.ui.fun_presenter" as src.ui.fun_presenter {
 }
+package "src.ui.project_flow" as src.ui.project_flow {
+}
+package "src.ui.remote_flow" as src.ui.remote_flow {
+}
 package "src.ui.settings_table_display" as src.ui.settings_table_display {
 }
 package "src.ui.unavailable_display" as src.ui.unavailable_display {
 }
+src.main --> src.controllers.settings_manager
 src.main --> src.core.di
 src.main --> src.core.exceptions
 src.main --> src.core.logging_setup
 src.main --> src.models.connection
-src.main --> src.models.mod_handlers
 src.main --> src.models.project
 src.main --> src.services.config_service
 src.main --> src.services.connection_manager
-src.main --> src.services.economy_service
 src.main --> src.services.entertainment_service
-src.main --> src.services.profile_preload_service
 src.main --> src.services.profile_service
 src.main --> src.services.project_service
 src.main --> src.services.remote_sync_service
 src.main --> src.services.settings_service
 src.main --> src.services.update_service
+src.main --> src.ui.app_shell
+src.main --> src.ui.dialogs
 src.main --> src.ui.economy_editor
-src.main --> src.ui.settings_table_display
+src.main --> src.ui.project_flow
+src.main --> src.ui.remote_flow
 @enduml
