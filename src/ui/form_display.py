@@ -6,6 +6,7 @@ from collections.abc import Callable
 
 import flet as ft
 
+from commands.registry import CommandRegistry
 from core.exceptions import AccessError, ParseError
 from models.form_schema import (
     FormDict,
@@ -81,9 +82,11 @@ class FormDisplay:
         self,
         page: ft.Page,
         json_repo: JsonSettingsRepository | None = None,
+        commands: CommandRegistry | None = None,
     ):
         self._page = page
         self._json_repo = json_repo or JsonSettingsRepository()
+        self._commands = commands
 
         self.on_saved: Callable[[], None] | None = None
         self.on_file_select: Callable[[str], None] | None = None
@@ -124,12 +127,24 @@ class FormDisplay:
 
         self._status = ft.Text("", size=12, selectable=True)
         self._save_btn = ft.Button(
-            "Save", icon=ft.Icons.SAVE, on_click=self.save_current
+            "Save",
+            icon=ft.Icons.SAVE,
+            on_click=self._bind("save", self.save_current),
         )
         self.button_row = ft.Row(
             [self._save_btn, ft.Divider(), self._status],
             alignment=ft.MainAxisAlignment.START,
         )
+
+    def _bind(
+        self,
+        command_id: str,
+        fallback: Callable[[object], None],
+    ) -> Callable[[object], None]:
+        commands = self._commands
+        if commands is not None:
+            return lambda _e: commands.invoke(command_id)
+        return fallback
 
     # ------------------------------------------------------------------ public
 

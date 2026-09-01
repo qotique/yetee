@@ -5,6 +5,7 @@ from typing import TypedDict
 import flet as ft
 
 from controllers.dirty_state_manager import DirtyStateManager
+from commands.registry import CommandRegistry
 from controllers.pagination_controller import PaginationController
 from controllers.search_controller import SearchController
 from controllers.table_controller import TableController
@@ -40,6 +41,11 @@ class AppServices(TypedDict):
     connection_manager: ConnectionManager
     remote_sync_service: RemoteSyncService
     profile_service: ProfileService
+    command_registry: CommandRegistry
+
+
+def create_command_registry() -> CommandRegistry:
+    return CommandRegistry()
 
 
 def create_file_cache() -> FileCache:
@@ -91,6 +97,7 @@ def create_event_display(
     event_repo: EventRepository | None = None,
     cache: FileCache | None = None,
     entertainment_service: EntertainmentService | None = None,
+    commands: CommandRegistry | None = None,
 ) -> EventDisplay:
     cache = cache or create_file_cache()
     event_repo = event_repo or create_event_repository(cache)
@@ -99,6 +106,7 @@ def create_event_display(
         event_repo=event_repo,
         cache=cache,
         entertainment_service=entertainment_service,
+        commands=commands,
     )
 
 
@@ -107,6 +115,7 @@ def create_file_display(
     xml_repo: XmlRepository | None = None,
     cache: FileCache | None = None,
     entertainment_service: EntertainmentService | None = None,
+    commands: CommandRegistry | None = None,
 ) -> FileDisplay:
     cache = cache or create_file_cache()
     xml_repo = xml_repo or create_xml_repository(cache)
@@ -115,6 +124,7 @@ def create_file_display(
         xml_repo=xml_repo,
         cache=cache,
         entertainment_service=entertainment_service,
+        commands=commands,
     )
 
 
@@ -132,6 +142,7 @@ def create_settings_table_display(
     page: ft.Page,
     xml_repo: XmlSettingsRepository | None = None,
     json_repo: JsonSettingsRepository | None = None,
+    commands: CommandRegistry | None = None,
 ) -> SettingsTableDisplay:
     xml_repo = xml_repo or XmlSettingsRepository()
     json_repo = json_repo or JsonSettingsRepository()
@@ -139,15 +150,17 @@ def create_settings_table_display(
         page=page,
         xml_repo=xml_repo,
         json_repo=json_repo,
+        commands=commands,
     )
 
 
 def create_form_display(
     page: ft.Page,
     json_repo: JsonSettingsRepository | None = None,
+    commands: CommandRegistry | None = None,
 ) -> FormDisplay:
     json_repo = json_repo or JsonSettingsRepository()
-    return FormDisplay(page=page, json_repo=json_repo)
+    return FormDisplay(page=page, json_repo=json_repo, commands=commands)
 
 
 def create_unavailable_display(page: ft.Page) -> UnavailableDisplay:
@@ -165,20 +178,25 @@ def create_economy_editor(
     settings_display: SettingsTableDisplay | None = None,
     form_display: FormDisplay | None = None,
     unavailable_display: UnavailableDisplay | None = None,
+    commands: CommandRegistry | None = None,
 ) -> EconomyEditor:
     cache = cache or create_file_cache()
     file_display = file_display or create_file_display(
         page=page,
         cache=cache,
         entertainment_service=entertainment_service,
+        commands=commands,
     )
     event_display = event_display or create_event_display(
         page=page,
         cache=cache,
         entertainment_service=entertainment_service,
+        commands=commands,
     )
-    settings_display = settings_display or create_settings_table_display(page)
-    form_display = form_display or create_form_display(page)
+    settings_display = settings_display or create_settings_table_display(
+        page, commands=commands
+    )
+    form_display = form_display or create_form_display(page, commands=commands)
     unavailable_display = unavailable_display or create_unavailable_display(page)
     return EconomyEditor(
         page=page,
@@ -199,6 +217,7 @@ def create_app_services(page: ft.Page) -> AppServices:
     connection_manager = ConnectionManager(ConnectionRepository())
     remote_sync_service = RemoteSyncService(connection_manager)
     profile_service = create_profile_service()
+    command_registry = create_command_registry()
     return {
         "config_service": config_service,
         "settings_service": create_settings_service(page),
@@ -210,9 +229,11 @@ def create_app_services(page: ft.Page) -> AppServices:
             config_service=config_service,
             entertainment_service=entertainment_service,
             cache=cache,
+            commands=command_registry,
         ),
         "project_service": ProjectService(),
         "connection_manager": connection_manager,
         "remote_sync_service": remote_sync_service,
         "profile_service": profile_service,
+        "command_registry": command_registry,
     }

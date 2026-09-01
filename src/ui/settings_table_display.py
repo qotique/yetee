@@ -8,6 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 import flet as ft
 
 from controllers.table_controller import PAGE_SIZE, TableController
+from commands.registry import CommandRegistry
 from models.custom_entities import get_columns, get_renderer
 from core.exceptions import AccessError, ParseError
 from models.field_def import FieldDef
@@ -50,11 +51,13 @@ class SettingsTableDisplay:
         xml_repo: XmlSettingsRepository | None = None,
         json_repo: JsonSettingsRepository | None = None,
         page_size: int = PAGE_SIZE,
+        commands: CommandRegistry | None = None,
     ):
         self._page = page
         self._xml_repo = xml_repo or XmlSettingsRepository()
         self._json_repo = json_repo or JsonSettingsRepository()
         self._page_size = page_size
+        self._commands = commands
 
         self.on_saved: Callable[[], None] | None = None
 
@@ -108,12 +111,22 @@ class SettingsTableDisplay:
         self._status = ft.Text("", size=12, selectable=True)
         self._page_info = ft.Text("", size=12)
         self._save_btn = ft.Button(
-            "Save", icon=ft.Icons.SAVE, on_click=self.save_current
+            "Save",
+            icon=ft.Icons.SAVE,
+            on_click=self._bind("save", self.save_current),
         )
-        self._undo_btn = ft.IconButton(icon=ft.Icons.UNDO, on_click=self._on_undo)
-        self._redo_btn = ft.IconButton(icon=ft.Icons.REDO, on_click=self._on_redo)
-        self._prev_btn = ft.Button("Prev", on_click=self._prev_page)
-        self._next_btn = ft.Button("Next", on_click=self._next_page)
+        self._undo_btn = ft.IconButton(
+            icon=ft.Icons.UNDO, on_click=self._bind("undo", self._on_undo)
+        )
+        self._redo_btn = ft.IconButton(
+            icon=ft.Icons.REDO, on_click=self._bind("redo", self._on_redo)
+        )
+        self._prev_btn = ft.Button(
+            "Prev", on_click=self._bind("prev_page", self._prev_page)
+        )
+        self._next_btn = ft.Button(
+            "Next", on_click=self._bind("next_page", self._next_page)
+        )
         self._search_field = ft.TextField(
             label="Search",
             icon=ft.Icons.SEARCH,
@@ -138,6 +151,20 @@ class SettingsTableDisplay:
             ],
             alignment=ft.MainAxisAlignment.START,
         )
+
+    def _bind(
+        self,
+        command_id: str,
+        fallback: Callable[[object], None],
+    ) -> Callable[[object], None]:
+        commands = self._commands
+        if commands is not None:
+            return lambda _e: commands.invoke(command_id)
+        return fallback
+
+    def _refresh_commands(self) -> None:
+        if self._commands is not None:
+            self._commands.refresh()
 
     def set_entity(self, entity: str) -> None:
         self._entity = entity
@@ -301,12 +328,14 @@ class SettingsTableDisplay:
         if self._page_idx > 0:
             self._page_idx -= 1
             self._render_table()
+            self._refresh_commands()
 
     def _next_page(self, e: object) -> None:
         total = len(self._filtered())
         if (self._page_idx + 1) * self._page_size < total:
             self._page_idx += 1
             self._render_table()
+            self._refresh_commands()
 
     def _on_table_change(self, e: object) -> None:
         current = _snapshot_rows(self._rows)
@@ -317,6 +346,7 @@ class SettingsTableDisplay:
             self._undo_stack.pop(0)
         self._redo_stack = []
         self._dirty = True
+        self._refresh_commands()
 
     def _on_undo(self, e: object) -> None:
         if not self._undo_stack:
@@ -326,6 +356,7 @@ class SettingsTableDisplay:
         _restore_rows(snapshot, self._rows)
         self._dirty = True
         self._render_table()
+        self._refresh_commands()
 
     def _on_redo(self, e: object) -> None:
         if not self._redo_stack:
@@ -335,6 +366,7 @@ class SettingsTableDisplay:
         _restore_rows(snapshot, self._rows)
         self._dirty = True
         self._render_table()
+        self._refresh_commands()
 
     def _sync_back_rows(self) -> None:
         self._table_ctrl.sync_back(self._rows, self._filtered(), self._page_idx)
@@ -413,3 +445,39 @@ class SettingsTableDisplay:
         self._parsed_cache.pop(path, None)
         self._xml_repo.invalidate_cache(path)
         self._json_repo.invalidate_cache(path)
+
+    def undo(self, e: object = None) -> None:
+        self._on_undo(None)
+
+    def redo(self, e: object = None) -> None:
+        self._on_redo(None)
+
+    def prev_page(self, e: object = None) -> None:
+        self._prev_page(None)
+
+    def next_page(self, e: object = None) -> None:
+        self._next_page(None)
+
+    @property
+    def can_undo(self) -> bool:
+        return bool(self._undo_stack)
+
+    @property
+    def can_redo(self) -> bool:
+        return bool(self._redo_stack)
+
+    @property
+    def can_add(self) -> bool:
+        return False
+
+    @property
+    def can_delete(self) -> bool:
+        return False
+
+    @property
+    def can_prev(self) -> bool:
+        return self._page_idx > 0
+
+    @property
+    def can_next(self) -> bool:
+        return (self._page_idx + 1) * self._page_size < len(self._filtered())

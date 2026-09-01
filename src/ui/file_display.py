@@ -7,6 +7,7 @@ from collections.abc import Callable
 
 from lxml import etree as ET
 
+from commands.registry import CommandRegistry
 from controllers.file_session import FileSession
 from controllers.table_controller import (
     TableController,
@@ -88,12 +89,14 @@ class FileDisplay:
         entertainment_service: EntertainmentService | None = None,
         fun_presenter: FunPresenter | None = None,
         session: FileSession | None = None,
+        commands: CommandRegistry | None = None,
     ):
         self._page = page
         self.cache = cache or FileCache()
         self.xml_repo = xml_repo or XmlRepository(cache=self.cache)
         self._session = session or FileSession(self.xml_repo, self.cache)
         self._entertainment_service = entertainment_service
+        self._commands = commands
 
         self._table_ctrl = TableController(page)
 
@@ -144,31 +147,31 @@ class FileDisplay:
         self._page_info = ft.Text("", size=12)
         self._prev_btn = ft.Button(
             "Prev",
-            on_click=self._prev_page,
+            on_click=self._bind("prev_page", self._prev_page),
         )
         self._next_btn = ft.Button(
             "Next",
-            on_click=self._next_page,
+            on_click=self._bind("next_page", self._next_page),
         )
         self._multi_btn = ft.Button(
             "Multi-select disabled",
             icon=ft.Icons.SELECT_ALL,
             tooltip="Toggle multi-select mode",
-            on_click=self._toggle_multi_select,
+            on_click=self._bind("toggle_multi_select", self._toggle_multi_select),
             icon_color=ft.Colors.GREY,
         )
         self._save_btn = ft.Button(
             "Save",
             icon=ft.Icons.SAVE,
-            on_click=self.save_current,
+            on_click=self._bind("save", self.save_current),
         )
         self._undo_btn = ft.IconButton(
             icon=ft.Icons.UNDO,
-            on_click=self._on_undo,
+            on_click=self._bind("undo", self._on_undo),
         )
         self._redo_btn = ft.IconButton(
             icon=ft.Icons.REDO,
-            on_click=self._on_redo,
+            on_click=self._bind("redo", self._on_redo),
         )
         self._stats_btn = ft.IconButton(
             icon=ft.Icons.BAR_CHART,
@@ -400,6 +403,26 @@ class FileDisplay:
 
         logger.debug("FileDisplay initialized")
 
+    def _bind(
+        self,
+        command_id: str,
+        fallback: Callable[[object], None],
+    ) -> Callable[[object], None]:
+        commands = self._commands
+        if commands is not None:
+            return lambda _e: commands.invoke(command_id)
+        return fallback
+
+    def _execute_command(self, command_id: str, fallback: Callable[[], None]) -> None:
+        if self._commands is not None:
+            self._commands.invoke(command_id)
+        else:
+            fallback()
+
+    def _refresh_commands(self) -> None:
+        if self._commands is not None:
+            self._commands.refresh()
+
     @property
     def _dirty(self) -> bool:
         return self._session.dirty
@@ -517,7 +540,6 @@ class FileDisplay:
             menu.clear()
 
     def _load_finish(self) -> None:
-        self._session.record_undo()
         self._table_ctrl.flag_names = _collect_flag_names(self._session.rows)
         self._table_ctrl.init_dynamic()
         self._batch_panel.hide()
@@ -634,6 +656,62 @@ class FileDisplay:
             self._save_text.color = ft.Colors.RED
             logger.error("Save failed for %s: %s", self._session.path, ex)
 
+    def undo(self, e: object = None) -> None:
+        self._on_undo(None)
+
+    def redo(self, e: object = None) -> None:
+        self._on_redo(None)
+
+    def add_row(self, e: object = None) -> None:
+        self._add_type()
+
+    def delete_row(self, e: object = None) -> None:
+        self._delete_selected()
+
+    def toggle_multi_select(self, e: object = None) -> None:
+        self._toggle_multi_select(None)
+
+    def prev_page(self, e: object = None) -> None:
+        self._prev_page(None)
+
+    def next_page(self, e: object = None) -> None:
+        self._next_page(None)
+
+    @property
+    def can_undo(self) -> bool:
+        return self._session.can_undo
+
+    @property
+    def can_redo(self) -> bool:
+        return self._session.can_redo
+
+    @property
+    def can_add(self) -> bool:
+        return self._session.path is not None
+
+    @property
+    def can_delete(self) -> bool:
+        return bool(self._session.selected_row_indices)
+
+    @property
+    def can_prev(self) -> bool:
+        return self.can_add and self._session.page_index > 0
+
+    @property
+    def can_next(self) -> bool:
+        return (
+            self.can_add
+            and self._session.page_index < self._session.total_pages() - 1
+        )
+
+    @property
+    def can_toggle_multi_select(self) -> bool:
+        return True
+
+    @property
+    def multi_select_mode(self) -> bool:
+        return self._multi_select_mode
+
     async def _save_async(self) -> None:
         if self._text_mode:
             self._save_text_file()
@@ -680,6 +758,9 @@ class FileDisplay:
             return False
 
     def _on_field_change(self, e: object) -> None:
+        if not self._session.dirty or not self._session.can_undo:
+            self._session.record_undo()
+            self._refresh_button_states()
         self._session.mark_dirty()
         self._fun.on_field_change(e)
 
@@ -687,9 +768,9 @@ class FileDisplay:
         if self._session.path is None:
             return
         if self._shift_pressed:
-            self._delete_selected()
+            self._execute_command("delete_row", self._delete_selected)
         else:
-            self._add_type()
+            self._execute_command("add_row", self._add_type)
 
     def _add_type(self) -> None:
         self._sync_detail_panel()
@@ -826,6 +907,7 @@ class FileDisplay:
         self._update_detail_panel()
         self._render_page()
         self.control.update()
+        self._refresh_commands()
 
     def _on_row_tap_down(self, e: object, pool_slot: int) -> None:
         self._mouse_down = True
@@ -868,34 +950,28 @@ class FileDisplay:
         self.control.update()
 
     def _sync_detail_panel(self) -> None:
-        if self._session.selected_row_idx is not None and len(
+        if self._session.selected_row_idx is None or len(
             self._session.selected_row_indices
-        ) <= 1:
+        ) > 1:
+            return
+        if not (
+            hasattr(self._detail_panel, "_usage_chipset")
+            and hasattr(self._detail_panel, "_value_chipset")
+        ):
+            return
+        usage_chipset = getattr(self._detail_panel, "_usage_chipset", None)
+        value_chipset = getattr(self._detail_panel, "_value_chipset", None)
+        if not usage_chipset or not value_chipset:
+            return
+        usage = ", ".join(usage_chipset.get_values())
+        value = ", ".join(value_chipset.get_values())
+        row = self._session.rows[self._session.selected_row_idx]
+        if row.values.get("usage") != usage or row.values.get("value") != value:
             self._session.record_undo()
-            if hasattr(self._detail_panel, "_usage_chipset") and hasattr(
-                self._detail_panel, "_value_chipset"
-            ):
-                usage_chipset = getattr(
-                    self._detail_panel,
-                    "_usage_chipset",
-                    None,
-                )
-                value_chipset = getattr(
-                    self._detail_panel,
-                    "_value_chipset",
-                    None,
-                )
-                if usage_chipset and value_chipset:
-                    usage = ", ".join(usage_chipset.get_values())
-                    value = ", ".join(value_chipset.get_values())
-                    self._session.rows[self._session.selected_row_idx].values[
-                        "usage"
-                    ] = usage
-                    self._session.rows[self._session.selected_row_idx].values[
-                        "value"
-                    ] = value
-                    if usage or value:
-                        self._session.mark_dirty()
+            row.values["usage"] = usage
+            row.values["value"] = value
+            if usage or value:
+                self._session.mark_dirty()
 
     def _update_detail_panel(self) -> None:
         if len(self._session.selected_row_indices) >= 2:
@@ -1070,6 +1146,7 @@ class FileDisplay:
         )
         self._prev_btn.disabled = self._session.page_index <= 0
         self._next_btn.disabled = self._session.page_index >= total_pages - 1
+        self._refresh_button_states()
 
     def _sync_page_back(self) -> None:
         if self._session.path is None or not self._session.dirty:
@@ -1117,6 +1194,7 @@ class FileDisplay:
         self._redo_btn.disabled = not self._session.can_redo
         self._undo_btn.update()
         self._redo_btn.update()
+        self._refresh_commands()
 
     def update_funny_visibility(self) -> None:
         self._fun.update_funny_visibility([self._lucky_btn, self._stats_btn])

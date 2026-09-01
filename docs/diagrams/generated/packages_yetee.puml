@@ -1,5 +1,11 @@
 @startuml packages_yetee
 set namespaceSeparator none
+package "src.commands" as src.commands {
+}
+package "src.commands.protocols" as src.commands.protocols {
+}
+package "src.commands.registry" as src.commands.registry {
+}
 package "src.connection" as src.connection {
 }
 package "src.connection.connection_factory" as src.connection.connection_factory {
@@ -116,6 +122,8 @@ package "src.ui.form_display" as src.ui.form_display {
 }
 package "src.ui.fun_presenter" as src.ui.fun_presenter {
 }
+package "src.ui.menu_bar" as src.ui.menu_bar {
+}
 package "src.ui.project_flow" as src.ui.project_flow {
 }
 package "src.ui.remote_flow" as src.ui.remote_flow {
@@ -124,6 +132,8 @@ package "src.ui.settings_table_display" as src.ui.settings_table_display {
 }
 package "src.ui.unavailable_display" as src.ui.unavailable_display {
 }
+src.commands --> src.commands.registry
+src.main --> src.commands.registry
 src.main --> src.controllers.settings_manager
 src.main --> src.core.di
 src.main --> src.core.exceptions
@@ -141,6 +151,7 @@ src.main --> src.services.update_service
 src.main --> src.ui.app_shell
 src.main --> src.ui.dialogs
 src.main --> src.ui.economy_editor
+src.main --> src.ui.menu_bar
 src.main --> src.ui.project_flow
 src.main --> src.ui.remote_flow
 @enduml
