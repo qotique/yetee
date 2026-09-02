@@ -1,0 +1,16 @@
+name: 'Issue Translator'
+
+on:
+  issues:
+    types: [opened, edited]
+
+jobs:
+  translate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Automatically Translate and Overwrite Issues
+        uses: usthe/issues-translate-action@v2.7
+        with:
+          IS_MODIFY_TITLE: true
+          IS_MODIFY_BODY: true
+          BOT_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
