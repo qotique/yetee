@@ -30,6 +30,7 @@ flowchart TB
         pflow["ProjectFlow (src/ui/project_flow.py)"]
         rflow["RemoteFlow (src/ui/remote_flow.py)"]
         dlg["ui/dialogs.py (show_error/show_message)"]
+        mb["CommandMenuBar (src/ui/menu_bar.py)"]
         ee["EconomyEditor (src/ui/economy_editor.py)"]
         fd["FileDisplay (src/ui/file_display.py)"]
         evd["EventDisplay (src/ui/event_display.py)"]
@@ -43,6 +44,13 @@ flowchart TB
         fp["FunPresenter ✓ ui/fun_presenter.py"]
     end
 
+    subgraph cmds["Commands"]
+        creg["CommandRegistry (src/commands/registry.py)"]
+        appcmd["AppCommand (src/commands/registry.py)"]
+        iproto["IAppCommand protocol (src/commands/protocols.py)"]
+        cmd["commands.py (RandomizeCommand / SaveCommand)"]
+    end
+
     subgraph controllers["Controllers"]
         sm["SettingsManager (src/controllers/settings_manager.py, flet-free)"]
         fs["FileSession (src/controllers/file_session.py, flet-free)"]
@@ -51,7 +59,6 @@ flowchart TB
         pag["PaginationController"]
         dirty["DirtyStateManager"]
         undo["UndoManager (src/models/undo_manager.py)"]
-        cmd["commands.py (RandomizeCommand / SaveCommand)"]
     end
 
     subgraph repo["Repositories"]
@@ -101,7 +108,11 @@ flowchart TB
     main -->|"creates"| pflow
     main -->|"creates"| rflow
     main -->|"creates"| sm
+    main -->|"register commands (AppCommand)"| creg
+    main -->|"builds + attaches via shell.attach_menu_bar"| mb
+    mb -->|"Observer: subscribe(refresh) + execute(id)"| creg
     shell -->|"widgets + view ops"| main
+    shell -->|"_commands.refresh()"| creg
     pflow -->|"project dialogs, selectors, preload"| ee
     pflow -->|"dropdowns/visibility/cat icons"| shell
     pflow -->|"projects CRUD"| prj
@@ -122,6 +133,7 @@ flowchart TB
     di -->|"creates"| rss
     di -->|"creates"| ee
     di -->|"creates"| prof
+    di -->|"creates + threads into displays"| creg
     di -->|"creates (shared cache)"| fd
     di -->|"creates (shared cache)"| evd
     di -->|"creates"| std
@@ -150,6 +162,8 @@ flowchart TB
     fd -->|"filter_menus (FilterMenu[])"| fm
     fd -->|"session (FileSession)"| fs
     fd -->|"TableController"| tc
+    fd -->|"buttons via CommandRegistry"| creg
+    ee -->|"undo/redo/add/delete/page dispatch"| creg
 
     fs -->|"state + ops (rows/undo/search/pagination/dirty)"| sc
     fs -->|"state + ops"| pag
@@ -165,14 +179,17 @@ flowchart TB
     evd -->|"cache"| cache
     evd -->|"TableController"| tc
     evd -->|"UndoManager"| undo
+    evd -->|"buttons via CommandRegistry"| creg
 
     std -->|"XmlSettingsRepository"| sxmlr
     std -->|"JsonSettingsRepository"| sjsonr
     std -->|"TableController"| tc
+    std -->|"buttons via CommandRegistry"| creg
     std -->|"get_renderer/get_columns"| cent
     std -->|"get_renderer/get_columns"| exp
     fmd -->|"JsonSettingsRepository.load_doc/save_doc"| sjsonr
     fmd -->|"get_form_schema_for_path/build_auto_form_schema"| fschema
+    fmd -->|"save button via CommandRegistry"| creg
     fmd -->|"schemas"| exp
     uav -->|"is_not_yet_available/get_mod_handler"| modh
 

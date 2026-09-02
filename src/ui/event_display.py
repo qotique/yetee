@@ -8,6 +8,7 @@ from lxml import etree as ET
 
 import flet as ft
 
+from commands.registry import CommandRegistry
 from controllers.dirty_state_manager import DirtyStateManager
 from controllers.pagination_controller import PaginationController
 from controllers.search_controller import SearchController
@@ -130,11 +131,13 @@ class EventDisplay:
         event_repo: EventRepository | None = None,
         cache: FileCache | None = None,
         entertainment_service: EntertainmentService | None = None,
+        commands: CommandRegistry | None = None,
     ):
         self._page = page
         self._cache = cache or FileCache()
         self._event_repo = event_repo or EventRepository(cache=self._cache)
         self._entertainment_service = entertainment_service
+        self._commands = commands
 
         self._undo_mgr = UndoManager()
         self._table_ctrl = TableController(page)
@@ -181,13 +184,21 @@ class EventDisplay:
             scroll=ft.ScrollMode.HIDDEN,
         )
         self._page_info = ft.Text("", size=12)
-        self._prev_btn = ft.Button("Prev", on_click=self._prev_page)
-        self._next_btn = ft.Button("Next", on_click=self._next_page)
-        self._save_btn = ft.Button(
-            "Save", icon=ft.Icons.SAVE, on_click=self.save_current
+        self._prev_btn = ft.Button(
+            "Prev", on_click=self._bind("prev_page", self._prev_page)
         )
-        self._undo_btn = ft.IconButton(icon=ft.Icons.UNDO, on_click=self._on_undo)
-        self._redo_btn = ft.IconButton(icon=ft.Icons.REDO, on_click=self._on_redo)
+        self._next_btn = ft.Button(
+            "Next", on_click=self._bind("next_page", self._next_page)
+        )
+        self._save_btn = ft.Button(
+            "Save", icon=ft.Icons.SAVE, on_click=self._bind("save", self.save_current)
+        )
+        self._undo_btn = ft.IconButton(
+            icon=ft.Icons.UNDO, on_click=self._bind("undo", self._on_undo)
+        )
+        self._redo_btn = ft.IconButton(
+            icon=ft.Icons.REDO, on_click=self._bind("redo", self._on_redo)
+        )
 
         self._search_field = ft.TextField(
             label="Search",
@@ -295,6 +306,26 @@ class EventDisplay:
         )
 
         logger.debug("EventDisplay initialized")
+
+    def _bind(
+        self,
+        command_id: str,
+        fallback: Callable[[object], None],
+    ) -> Callable[[object], None]:
+        commands = self._commands
+        if commands is not None:
+            return lambda _e: commands.invoke(command_id)
+        return fallback
+
+    def _execute_command(self, command_id: str, fallback: Callable[[], None]) -> None:
+        if self._commands is not None:
+            self._commands.invoke(command_id)
+        else:
+            fallback()
+
+    def _refresh_commands(self) -> None:
+        if self._commands is not None:
+            self._commands.refresh()
 
     @property
     def _dirty(self) -> bool:
@@ -476,7 +507,6 @@ class EventDisplay:
             self._spawns_data = {}
 
         self._compute_all_spawn_keys()
-        self._undo_mgr.record(self._undo_mgr.take_snapshot(self._rows))
         self._init_table()
         self._clear_selection()
         self._apply_filter("")
@@ -519,13 +549,18 @@ class EventDisplay:
             logger.error("Save failed for %s: %s", self._events_path, ex)
 
     def _on_field_change(self, e: object) -> None:
+        if not self._dirty_state.is_dirty or not self._undo_mgr.can_undo:
+            self._undo_mgr.record(self._undo_mgr.take_snapshot(self._rows))
+            self._refresh_button_states()
         self._dirty_state.mark_dirty()
 
     def _on_fab_click(self, e: object) -> None:
+        if self._events_path is None:
+            return
         if self._shift_pressed:
-            self._delete_selected()
+            self._execute_command("delete_row", self._delete_selected)
         else:
-            self._add_event()
+            self._execute_command("add_row", self._add_event)
 
     def _add_event(self) -> None:
         if self._events_path is None:
@@ -662,6 +697,7 @@ class EventDisplay:
         self._update_detail_panel()
         self._render_page()
         self.control.update()
+        self._refresh_commands()
 
     def _update_detail_panel(self) -> None:
         self._detail_row_key = None
@@ -928,6 +964,7 @@ class EventDisplay:
         )
         self._detail_child_column.update()
         self._dirty_state.mark_dirty()
+        self._refresh_button_states()
 
     def _delete_child(self, idx: int) -> None:
         if (
@@ -940,6 +977,7 @@ class EventDisplay:
         del self._detail_child_column.controls[idx]
         self._detail_child_column.update()
         self._dirty_state.mark_dirty()
+        self._refresh_button_states()
         for i in range(idx, len(self._detail_child_rows)):
             delete_btn = self._detail_child_rows[i][-1]
             delete_btn.on_click = lambda e, new_i=i: self._delete_child(new_i)
@@ -961,6 +999,7 @@ class EventDisplay:
         )
         self._detail_spawn_column.update()
         self._dirty_state.mark_dirty()
+        self._refresh_button_states()
 
     def _delete_spawn(self, idx: int) -> None:
         if (
@@ -974,6 +1013,7 @@ class EventDisplay:
         del self._detail_spawn_column.controls[spawn_row_idx]
         self._detail_spawn_column.update()
         self._dirty_state.mark_dirty()
+        self._refresh_button_states()
         for i in range(idx, len(self._detail_spawn_rows)):
             _, delete_btn = self._detail_spawn_rows[i]
             delete_btn.on_click = lambda e, new_i=i: self._delete_spawn(new_i)
@@ -1077,6 +1117,7 @@ class EventDisplay:
         )
         self._prev_btn.disabled = self._pagination.page_index <= 0
         self._next_btn.disabled = self._pagination.page_index >= total_pages - 1
+        self._refresh_button_states()
 
     def _sync_page_back(self) -> None:
         if self._events_path is None or not self._dirty_state.is_dirty:
@@ -1125,6 +1166,7 @@ class EventDisplay:
         self._redo_btn.disabled = not self._undo_mgr.can_redo
         self._undo_btn.update()
         self._redo_btn.update()
+        self._refresh_commands()
 
     def save_file(self) -> None:
         self._sync_page_back()
@@ -1163,3 +1205,46 @@ class EventDisplay:
         self._detail_spawn_column = None
         self._detail_zone_fields = {}
         logger.debug("EventDisplay cleared")
+
+    def undo(self, e: object = None) -> None:
+        self._on_undo(None)
+
+    def redo(self, e: object = None) -> None:
+        self._on_redo(None)
+
+    def add_row(self, e: object = None) -> None:
+        self._add_event()
+
+    def delete_row(self, e: object = None) -> None:
+        self._delete_selected()
+
+    def prev_page(self, e: object = None) -> None:
+        self._prev_page(None)
+
+    def next_page(self, e: object = None) -> None:
+        self._next_page(None)
+
+    @property
+    def can_undo(self) -> bool:
+        return self._undo_mgr.can_undo
+
+    @property
+    def can_redo(self) -> bool:
+        return self._undo_mgr.can_redo
+
+    @property
+    def can_add(self) -> bool:
+        return self._events_path is not None
+
+    @property
+    def can_delete(self) -> bool:
+        return bool(self._selected_row_indices)
+
+    @property
+    def can_prev(self) -> bool:
+        return self.can_add and self._pagination.page_index > 0
+
+    @property
+    def can_next(self) -> bool:
+        total = self._pagination.total_pages(len(self._filtered))
+        return self.can_add and self._pagination.page_index < total - 1

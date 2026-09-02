@@ -5,6 +5,7 @@ import logging
 import flet as ft
 
 import models.expansion  # noqa: F401  (registers Expansion schemas at import)
+from commands.registry import AppCommand, CommandRegistry
 from controllers.settings_manager import SettingsManager
 from core.di import create_app_services
 from core.exceptions import YeteeError
@@ -22,12 +23,13 @@ from models.project import Project
 from ui.app_shell import AppShell
 from ui.dialogs import show_message
 from ui.economy_editor import EconomyEditor
+from ui.menu_bar import MENU_SPECS, CommandMenuBar
 from ui.project_flow import ProjectFlow
 from ui.remote_flow import RemoteFlow
 
 logger = logging.getLogger(__name__)
 
-VERSION = "0.6.2"
+VERSION = "0.7.0"
 
 
 class App:
@@ -43,6 +45,7 @@ class App:
         connection_manager: ConnectionManager | None = None,
         remote_sync_service: RemoteSyncService | None = None,
         profile_service: ProfileService | None = None,
+        command_registry: CommandRegistry | None = None,
     ) -> None:
         self.page = page
         self._config_service = config_service
@@ -56,11 +59,14 @@ class App:
             self._connection_manager
         )
         self._profile_service = profile_service or ProfileService()
+        self._command_registry = command_registry or CommandRegistry()
 
         self.settings_manager = SettingsManager(
             settings_service, entertainment_service
         )
-        self.shell = AppShell(page, entertainment_service)
+        self.shell = AppShell(
+            page, entertainment_service, self._command_registry
+        )
         self.shell.attach_editor(economy_editor.control)
         self.project_flow = ProjectFlow(
             page,
@@ -78,6 +84,7 @@ class App:
             self.project_flow,
             economy_editor,
         )
+        self._register_commands()
         self._wire_actions()
 
         page.title = "Yet Another Types Editing Environment | YETEE"
@@ -103,15 +110,16 @@ class App:
         shell = self.shell
         projects = self.project_flow
         remote = self.remote_flow
+        execute = self._command_registry.invoke
 
         shell.project_dropdown.on_select = projects.on_project_switch
         shell.entity_dropdown.on_select = projects.on_entity_switch
-        shell.new_project_btn.on_click = projects.show_new_project_dialog
-        shell.delete_project_btn.on_click = projects.delete_project_flow
-        shell.refresh_btn.on_click = remote.on_refresh_project
-        shell.save_btn.on_click = self._on_save
-        shell.settings_btn.on_click = shell.open_settings
-        shell.connections_btn.on_click = remote.show_connections_dialog
+        shell.new_project_btn.on_click = lambda e: execute("new_project")
+        shell.delete_project_btn.on_click = lambda e: execute("delete_project")
+        shell.refresh_btn.on_click = lambda e: execute("reload")
+        shell.save_btn.on_click = lambda e: execute("save")
+        shell.settings_btn.on_click = lambda e: execute("settings")
+        shell.connections_btn.on_click = lambda e: execute("connections")
 
         shell.start_new_project_btn.on_click = projects.show_new_project_dialog
         shell.start_ssh_btn.on_click = lambda e: remote.show_connections_dialog(
@@ -132,6 +140,119 @@ class App:
         shell.cat_mode_switch.on_change = self._on_cat_mode_change
         shell.terminal_mode_switch.on_change = self._on_terminal_mode_change
         shell.funny_enabled_switch.on_change = self._on_funny_enabled_change
+
+    def _register_commands(self) -> None:
+        reg = self._command_registry
+        editor = self._economy_editor
+        shell = self.shell
+        projects = self.project_flow
+        remote = self.remote_flow
+
+        def project_open() -> bool:
+            return editor.project is not None
+
+        reg.register(
+            AppCommand("new_project", "New Project", self._show_new_project_dialog)
+        )
+        reg.register(
+            AppCommand(
+                "open_project",
+                "Open Project",
+                projects.show_open_project_dialog,
+            )
+        )
+        reg.register(
+            AppCommand(
+                "delete_project",
+                "Delete Project",
+                projects.delete_project_flow,
+                enabled_fn=project_open,
+            )
+        )
+        reg.register(
+            AppCommand(
+                "save", "Save", editor.save_current, enabled_fn=project_open
+            )
+        )
+        reg.register(
+            AppCommand(
+                "reload",
+                "Reload",
+                remote.on_refresh_project,
+                enabled_fn=project_open,
+            )
+        )
+        reg.register(AppCommand("settings", "Settings", shell.open_settings))
+        reg.register(
+            AppCommand("connections", "Connections", remote.show_connections_dialog)
+        )
+        reg.register(
+            AppCommand(
+                "close",
+                "Close Window",
+                lambda: self.page.run_task(self.shell._close_window, None),
+            )
+        )
+        reg.register(
+            AppCommand(
+                "undo",
+                "Undo",
+                editor.undo_current,
+                enabled_fn=lambda: editor.can_undo,
+            )
+        )
+        reg.register(
+            AppCommand(
+                "redo",
+                "Redo",
+                editor.redo_current,
+                enabled_fn=lambda: editor.can_redo,
+            )
+        )
+        reg.register(
+            AppCommand(
+                "add_row",
+                "Add",
+                editor.add_current,
+                enabled_fn=lambda: editor.can_add,
+                title_fn=editor.add_label,
+            )
+        )
+        reg.register(
+            AppCommand(
+                "delete_row",
+                "Delete",
+                editor.delete_current,
+                enabled_fn=lambda: editor.can_delete,
+            )
+        )
+        reg.register(
+            AppCommand(
+                "toggle_multi_select",
+                "Multi-select",
+                editor.toggle_multi_select_current,
+                enabled_fn=lambda: editor.can_toggle_multi_select,
+                title_fn=editor.multi_select_label,
+            )
+        )
+        reg.register(
+            AppCommand(
+                "prev_page",
+                "Previous Page",
+                editor.prev_page_current,
+                enabled_fn=lambda: editor.can_prev,
+            )
+        )
+        reg.register(
+            AppCommand(
+                "next_page",
+                "Next Page",
+                editor.next_page_current,
+                enabled_fn=lambda: editor.can_next,
+            )
+        )
+
+        self.shell.attach_menu_bar(CommandMenuBar(reg, MENU_SPECS).control)
 
     def build_main_view(self) -> ft.View:
         return self.shell.build_main_view()
@@ -196,10 +317,6 @@ class App:
             profiles_dir=profiles_dir,
             remote_opener=self.remote_flow.show_connections_dialog,
         )
-
-    def _on_save(self, e: object) -> None:
-        self._economy_editor.save_current(e)
-        self.remote_flow.on_local_saved()
 
     async def _on_theme_change(self, e: ft.ControlEvent) -> None:
         theme = e.control.value
@@ -266,6 +383,7 @@ def main(page: ft.Page) -> None:
         connection_manager=services["connection_manager"],
         remote_sync_service=services["remote_sync_service"],
         profile_service=services["profile_service"],
+        command_registry=services["command_registry"],
     )
     page.update()
 

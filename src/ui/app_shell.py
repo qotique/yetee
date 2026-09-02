@@ -5,6 +5,7 @@ import logging
 import flet as ft
 
 from controllers.settings_manager import SettingsManager
+from commands.registry import CommandRegistry
 from services.entertainment_service import EntertainmentService
 from services.settings_service import LANGUAGES, THEMES
 
@@ -16,9 +17,11 @@ class AppShell:
         self,
         page: ft.Page,
         entertainment_service: EntertainmentService,
+        command_registry: CommandRegistry | None = None,
     ) -> None:
         self.page = page
         self._entertainment = entertainment_service
+        self._commands = command_registry
         self._editor_control: ft.Control | None = None
         self._build_controls()
 
@@ -246,31 +249,32 @@ class AppShell:
             ),
         )
 
+        self._title_row = ft.Row(
+            [
+                ft.Container(expand=True),
+                self.entity_dropdown,
+                self.project_dropdown,
+                self.new_project_btn,
+                self.delete_project_btn,
+                self.refresh_btn,
+                self.settings_btn,
+                self.connections_btn,
+                ft.IconButton(
+                    icon=ft.Icons.CLOSE,
+                    on_click=self._close_window,
+                ),
+            ],
+            spacing=2,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        )
         self.title_bar = ft.Container(
             content=ft.WindowDragArea(
-                content=ft.Row(
-                    [
-                        ft.Container(expand=True),
-                        self.entity_dropdown,
-                        self.project_dropdown,
-                        self.new_project_btn,
-                        self.delete_project_btn,
-                        self.refresh_btn,
-                        self.settings_btn,
-                        self.connections_btn,
-                        ft.IconButton(
-                            icon=ft.Icons.CLOSE,
-                            on_click=self._close_window,
-                        ),
-                    ],
-                    spacing=2,
-                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                ),
+                content=self._title_row,
                 maximizable=True,
             ),
             bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST,
             height=56,
-            padding=ft.Padding(left=0, top=0, right=4, bottom=0),
+            padding=ft.Padding(left=8, top=0, right=4, bottom=0),
         )
 
         self.content_stack = ft.Stack(
@@ -284,6 +288,9 @@ class AppShell:
     def attach_editor(self, editor_control: ft.Control) -> None:
         self._editor_control = editor_control
         self.content_column.controls.append(editor_control)
+
+    def attach_menu_bar(self, control: ft.Control) -> None:
+        self._title_row.controls.insert(0, control)
 
     def build_main_view(self) -> ft.View:
         return ft.View(
@@ -305,6 +312,8 @@ class AppShell:
         self.save_btn.visible = opened
         self.delete_project_btn.visible = opened
         self.refresh_btn.visible = opened
+        if self._commands is not None:
+            self._commands.refresh()
 
     def refresh_project_options(self, names: list[str], selected: str | None) -> None:
         self.project_dropdown.options = [ft.DropdownOption(key=n) for n in names]

@@ -16,8 +16,15 @@ class "App" as src.main.App {
   route_change(route: object) -> None
   view_pop(e: ft.ViewPopEvent) -> None
 }
+class "AppCommand" as src.commands.registry.AppCommand {
+  command_id : str
+  enabled : bool
+  title : str
+  execute() -> None
+}
 class "AppServices" as src.core.di.AppServices {
   cache : FileCache
+  command_registry : CommandRegistry
   config_service : ConfigService
   connection_manager : ConnectionManager
   economy_editor : EconomyEditor
@@ -58,6 +65,7 @@ class "AppShell" as src.ui.app_shell.AppShell {
   title_bar : Container
   unhandled_editors_switch : Switch
   attach_editor(editor_control: ft.Control) -> None
+  attach_menu_bar(control: ft.Control) -> None
   build_main_view() -> ft.View
   close_settings(e: object) -> None
   ensure_main_view() -> None
@@ -82,6 +90,18 @@ class "ChipSet" as src.ui.chip_set.ChipSet {
   refresh() -> None
   remove(value: str) -> None
   set_cat_mode(enabled: bool) -> None
+}
+class "CommandMenuBar" as src.ui.menu_bar.CommandMenuBar {
+  control : MenuBar
+  refresh() -> None
+}
+class "CommandRegistry" as src.commands.registry.CommandRegistry {
+  all() -> list[IAppCommand]
+  execute(command_id: str) -> None
+  get(command_id: str) -> IAppCommand | None
+  refresh() -> None
+  register(command: IAppCommand) -> None
+  subscribe(listener: Callable[[], None]) -> None
 }
 class "CommunityOnlineTools" as src.models.mod_handlers.CommunityOnlineTools {
   name : str
@@ -141,6 +161,13 @@ class "DirtyStateManager" as src.controllers.dirty_state_manager.DirtyStateManag
 }
 class "EconomyEditor" as src.ui.economy_editor.EconomyEditor {
   available_entities : list[str]
+  can_add : bool
+  can_delete : bool
+  can_next : bool
+  can_prev : bool
+  can_redo : bool
+  can_toggle_multi_select : bool
+  can_undo : bool
   control : Container
   current_entity : str | None
   current_file : str | None
@@ -152,14 +179,23 @@ class "EconomyEditor" as src.ui.economy_editor.EconomyEditor {
   is_types_entity : bool
   project : Project | None
   settings_display : SettingsTableDisplay | None
+  add_current(e: object) -> None
+  add_label() -> str
+  delete_current(e: object) -> None
   get_file_path(label: str) -> str | None
   is_editable_entity(entity: str) -> bool
   load_project(project: Project) -> None
+  multi_select_label() -> str
+  next_page_current(e: object) -> None
+  prev_page_current(e: object) -> None
+  redo_current(e: object) -> None
   save_current(e: object) -> None
   save_file() -> None
   set_show_unhandled_editors(enabled: bool) -> None
   switch_entity(entity: str) -> None
   switch_file(label: str) -> None
+  toggle_multi_select_current(e: object) -> None
+  undo_current(e: object) -> None
   unload() -> None
 }
 class "EconomyService" as src.services.economy_service.EconomyService {
@@ -206,12 +242,24 @@ class "EntityConfig" as src.models.custom_entities.EntityConfig {
 }
 class "EventDisplay" as src.ui.event_display.EventDisplay {
   button_row : Row
+  can_add : bool
+  can_delete : bool
+  can_next : bool
+  can_prev : bool
+  can_redo : bool
+  can_undo : bool
   control : Container
   on_saved : Callable[[], None] | None
+  add_row(e: object) -> None
   clear() -> None
+  delete_row(e: object) -> None
   load_file(events_path: str, spawns_path: str | None) -> None
+  next_page(e: object) -> None
+  prev_page(e: object) -> None
+  redo(e: object) -> None
   save_current(e: object) -> None
   save_file() -> None
+  undo(e: object) -> None
   update_cat_icons() -> None
 }
 class "EventRepository" as src.repository.event_repository.EventRepository {
@@ -267,16 +315,31 @@ class "FileConfig" as src.models.custom_entities.FileConfig {
 class "FileDisplay" as src.ui.file_display.FileDisplay {
   button_row : Row
   cache : FileCache
+  can_add : bool
+  can_delete : bool
+  can_next : bool
+  can_prev : bool
+  can_redo : bool
+  can_toggle_multi_select : bool
+  can_undo : bool
   control : Container
+  multi_select_mode : bool
   on_saved : Callable[[], None] | None
   xml_repo : XmlRepository
+  add_row(e: object) -> None
   clear() -> None
   clear_cache(path: str) -> None
+  delete_row(e: object) -> None
   load_file(path: str) -> None
   load_file_async(path: str, cancel_check: Callable[[], bool] | None) -> None
+  next_page(e: object) -> None
+  prev_page(e: object) -> None
+  redo(e: object) -> None
   save_current(e: object) -> None
   save_file() -> None
   show_meow_popup() -> None
+  toggle_multi_select(e: object) -> None
+  undo(e: object) -> None
   update_cat_icons() -> None
   update_funny_visibility() -> None
 }
@@ -402,6 +465,12 @@ class "FunPresenter" as src.ui.fun_presenter.FunPresenter {
   show_terminal_save(row_count: int) -> None
   update_funny_visibility(buttons: list[ft.Control]) -> None
 }
+class "IAppCommand" as src.commands.protocols.IAppCommand {
+  command_id : str
+  enabled : bool
+  title : str
+  execute() -> None
+}
 class "IBatchPanel" as src.core.protocols.IBatchPanel {
   build() -> object
   get_values() -> dict[str, object]
@@ -514,6 +583,17 @@ class "JsonSettingsRepository" as src.repository.settings_repository.JsonSetting
   parse_file(path: str, schema: tuple[FieldDef, ...] | None) -> tuple[list[FieldDef], list[RowData]]
   save(path: str, rows: list[RowData]) -> None
   save_doc(path: str, doc: object) -> None
+}
+class "MenuGroupSpec" as src.ui.menu_bar.MenuGroupSpec {
+  items : list[MenuItemSpec]
+  title : str
+}
+class "MenuItemSpec" as src.ui.menu_bar.MenuItemSpec {
+  children : list[MenuItemSpec]
+  command_id : str
+  divider_after : bool
+  shortcut : str | None
+  title : str | None
 }
 class "<color:red>NetworkError</color>" as src.core.exceptions.NetworkError {
 }
@@ -668,6 +748,12 @@ class "SettingsStore" as src.controllers.settings_manager.SettingsStore {
 }
 class "SettingsTableDisplay" as src.ui.settings_table_display.SettingsTableDisplay {
   button_row : Row
+  can_add : bool
+  can_delete : bool
+  can_next : bool
+  can_prev : bool
+  can_redo : bool
+  can_undo : bool
   control : Container
   is_dirty : bool
   on_saved : Callable[[], None] | None
@@ -675,11 +761,15 @@ class "SettingsTableDisplay" as src.ui.settings_table_display.SettingsTableDispl
   clear_cache(path: str) -> None
   load_file(path: str) -> None
   load_file_async(path: str, cancel_check: Callable[[], bool] | None) -> None
+  next_page(e: object) -> None
   preload_cached(paths: list[str], on_progress: Callable[[int, int], None] | None, cancel_check: Callable[[], bool] | None) -> None
+  prev_page(e: object) -> None
+  redo(e: object) -> None
   save_async() -> None
   save_current(e: object) -> None
   save_file() -> None
   set_entity(entity: str) -> None
+  undo(e: object) -> None
 }
 class "SpawnerBubaku" as src.models.mod_handlers.SpawnerBubaku {
   name : str

@@ -709,11 +709,30 @@ def test_app_shell_widgets_bound(mock_page):
         editor,
     )
     shell = app.shell
-    assert shell.save_btn.on_click == app._on_save
+    assert callable(shell.save_btn.on_click)
     assert shell.project_dropdown.on_select == app.project_flow.on_project_switch
     assert shell.entity_dropdown.on_select == app.project_flow.on_entity_switch
-    assert shell.refresh_btn.on_click == app.remote_flow.on_refresh_project
+    assert callable(shell.refresh_btn.on_click)
     assert (
         shell.start_open_project_btn.on_click
         == app.project_flow.show_open_project_dialog
     )
+
+    registry = app._command_registry
+    assert registry.get("save") is not None
+    assert registry.get("reload") is not None
+    assert registry.get("new_project") is not None
+    assert registry.get("delete_project") is not None
+    assert registry.get("settings") is not None
+    assert registry.get("connections") is not None
+    assert registry.get("undo") is not None
+    assert registry.get("redo") is not None
+    assert registry.get("add_row") is not None
+    assert registry.get("delete_row") is not None
+    assert registry.get("toggle_multi_select") is not None
+    assert registry.get("prev_page") is not None
+    assert registry.get("next_page") is not None
+
+    editor.save_current.reset_mock()
+    shell.save_btn.on_click(object())
+    editor.save_current.assert_called_once()

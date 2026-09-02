@@ -92,6 +92,50 @@ class SaveCommand {
   + execute() / execute_async()
 }
 
+' Command pattern: central app commands (CommandRegistry + Observer), see src/commands/
+interface IAppCommand {
+  + command_id : str (ro)
+  + title : str (ro)
+  + enabled : bool (ro)
+  + execute()
+}
+class AppCommand implements IAppCommand {
+  + command_id : str (ro)
+  + title : str (ro)  (dynamic via title_fn)
+  + enabled : bool (ro)  (dynamic via enabled_fn)
+  + execute()
+  + __init__(command_id, title, handler, enabled_fn=None, title_fn=None)
+}
+class CommandRegistry {
+  + register(command)
+  + get(id) : IAppCommand | None
+  + all() : list[IAppCommand]
+  + execute(id)
+  + subscribe(listener)
+  + refresh()
+}
+class CommandMenuBar {
+  + control : ft.MenuBar
+  + refresh()
+  + _build_group(spec) / _build_item(spec)
+}
+note right of CommandRegistry
+  App._register_commands() (src/main.py) builds AppCommand
+  wrappers over shell / project_flow / remote_flow /
+  economy_editor methods and attaches CommandMenuBar to
+  the shell title row (shell.attach_menu_bar).
+end note
+CommandMenuBar ..> CommandRegistry : "subscribes (Observer) + execute(id)"
+CommandRegistry o-- IAppCommand
+CommandMenuBar ..> IAppCommand : "reads title/enabled"
+' Displays rebind their buttons to registry.execute(id) via _bind()
+FileDisplay ..> CommandRegistry
+EventDisplay ..> CommandRegistry
+SettingsTableDisplay ..> CommandRegistry
+FormDisplay ..> CommandRegistry
+' EconomyEditor routes current-entity commands to the active display
+EconomyEditor ..> CommandRegistry
+
 ' FileDisplay and EventDisplay reuse several controllers
 FileDisplay ..> FileSession
 FileDisplay ..> TableController
@@ -107,6 +151,7 @@ EventDisplay ..> TableController
 EventDisplay ..> UndoManager
 SettingsManager ..> SettingsStore
 SettingsManager ..> EntertainmentFlags
+AppShell ..> CommandRegistry : "refresh() on project open/close"
 
 ' FileDisplay и EventDisplay используют несколько контроллеров
 TableController --> RowSnapshot : "handles / обрабатывает"

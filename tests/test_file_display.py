@@ -354,3 +354,33 @@ def test_text_mode_reset_after_xml_load(small_types_file, mock_page, tmp_path):
     fd.load_file(str(small_types_file))
     assert fd._text_mode is False
     assert len(fd._rows) == 3
+
+
+# ── Undo / redo availability ───────────────────────────────────────────
+
+
+def test_undo_disabled_after_load_without_edits(small_types_file, mock_page):
+    fd = FileDisplay(page=mock_page)
+    fd.load_file(str(small_types_file))
+    assert not fd.can_undo
+    assert fd._undo_btn.disabled
+    assert not fd.can_redo
+    assert fd._redo_btn.disabled
+
+
+def test_first_edit_enables_undo(small_types_file, mock_page):
+    fd = FileDisplay(page=mock_page)
+    fd.load_file(str(small_types_file))
+    fd._on_field_change(None)
+    assert fd.can_undo
+    assert not fd._undo_btn.disabled
+
+
+def test_first_edit_undo_restores_original(small_types_file, mock_page):
+    fd = FileDisplay(page=mock_page)
+    fd.load_file(str(small_types_file))
+    fd._on_field_change(None)
+    original = dict(fd._session.rows[0].values)
+    fd._session.rows[0].values["nominal"] = "999"
+    assert fd._session.undo() is True
+    assert fd._session.rows[0].values == original

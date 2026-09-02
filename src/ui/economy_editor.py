@@ -364,6 +364,87 @@ class EconomyEditor:
         config = self._config_for(self._current_entity)
         config.display.save_current(e)
 
+    def _current_display(self) -> object | None:
+        if self._current_entity is None:
+            return None
+        return self._config_for(self._current_entity).display
+
+    def undo_current(self, e: object = None) -> None:
+        display = self._current_display()
+        if display is not None and hasattr(display, "undo"):
+            display.undo(e)
+
+    def redo_current(self, e: object = None) -> None:
+        display = self._current_display()
+        if display is not None and hasattr(display, "redo"):
+            display.redo(e)
+
+    def add_current(self, e: object = None) -> None:
+        display = self._current_display()
+        if display is not None and hasattr(display, "add_row"):
+            display.add_row(e)
+
+    def delete_current(self, e: object = None) -> None:
+        display = self._current_display()
+        if display is not None and hasattr(display, "delete_row"):
+            display.delete_row(e)
+
+    def toggle_multi_select_current(self, e: object = None) -> None:
+        display = self._current_display()
+        if display is not None and hasattr(display, "toggle_multi_select"):
+            display.toggle_multi_select(e)
+
+    def prev_page_current(self, e: object = None) -> None:
+        display = self._current_display()
+        if display is not None and hasattr(display, "prev_page"):
+            display.prev_page(e)
+
+    def next_page_current(self, e: object = None) -> None:
+        display = self._current_display()
+        if display is not None and hasattr(display, "next_page"):
+            display.next_page(e)
+
+    @property
+    def can_undo(self) -> bool:
+        return bool(getattr(self._current_display(), "can_undo", False))
+
+    @property
+    def can_redo(self) -> bool:
+        return bool(getattr(self._current_display(), "can_redo", False))
+
+    @property
+    def can_add(self) -> bool:
+        return bool(getattr(self._current_display(), "can_add", False))
+
+    @property
+    def can_delete(self) -> bool:
+        return bool(getattr(self._current_display(), "can_delete", False))
+
+    @property
+    def can_toggle_multi_select(self) -> bool:
+        return bool(getattr(self._current_display(), "can_toggle_multi_select", False))
+
+    @property
+    def can_prev(self) -> bool:
+        return bool(getattr(self._current_display(), "can_prev", False))
+
+    @property
+    def can_next(self) -> bool:
+        return bool(getattr(self._current_display(), "can_next", False))
+
+    def add_label(self) -> str:
+        entity = self._current_entity
+        if entity == "Events":
+            return "Add Event"
+        if entity == TYPES_ENTITY:
+            return "Add Type"
+        return "Add"
+
+    def multi_select_label(self) -> str:
+        if getattr(self._current_display(), "multi_select_mode", False):
+            return "Disable multi-select"
+        return "Enable multi-select"
+
     @property
     def project(self) -> Project | None:
         return self._project
